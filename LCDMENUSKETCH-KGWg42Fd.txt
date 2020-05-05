@@ -1,0 +1,215 @@
+#include <Bounce2.h>
+#include <Wire.h> 
+#include <LiquidCrystal_I2C.h>
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+#define up 7
+#define down 6
+#define LED_PIN 13
+unsigned int counter = 0;
+unsigned long currentMillis;
+unsigned long previousMillis;
+int menuSize = 8;
+int ledState = LOW;
+bool mainMenu = true;
+int currentMenu =0;
+int subMenu = 0;
+
+byte arrow[] = {
+  B00000,
+  B00100,
+  B00010,
+  B11111,
+  B00010,
+  B00100,
+  B00000,
+  B00000
+};
+
+byte degree[] = {
+  B00000,
+  B01110,
+  B01010,
+  B01110,
+  B00000,
+  B00000,
+  B00000,
+  B00000
+};
+
+byte celcius[] = {
+  0x00,
+  0x06,
+  0x09,
+  0x08,
+  0x08,
+  0x09,
+  0x06,
+  0x00
+};
+
+Bounce debouncerup = Bounce(); // Instantiate a Bounce object
+Bounce debouncerdown = Bounce(); // Instantiate a Bounce object
+
+void setup() {
+
+debouncerup.attach(up,INPUT_PULLUP); // Attach the debouncer to a pin with INPUT_PULLUP mode
+debouncerdown.attach(down, INPUT_PULLUP);
+pinMode(LED_BUILTIN,OUTPUT); // Setup the LED
+debouncerup.interval(50);
+debouncerdown.interval(50); // Use a debounce interval of 25 milliseconds
+lcd.begin();
+lcd.backlight();
+lcd.setCursor(0,0);
+lcd.print("Incubator Is Now");
+lcd.setCursor(0,1);
+lcd.print("Starting...");
+lcd.createChar(0, arrow);
+lcd.createChar(1, degree);
+lcd.createChar(2, celcius);
+lcd.home();
+delay(1000);
+currentMenu = 1; 
+lcd.clear();
+
+
+}
+
+void loop() {
+  currentMillis = millis();
+  debouncerup.update(); // Update the Bounce instance
+  debouncerdown.update();
+  calculateMenu();    //decides to decrement or increment
+  checkMenu();        //shows different text on lcd according to menu system
+  updateSub();
+  
+
+}
+
+//----------------------------------Functions-----------------------
+
+
+void checkMenu() {
+
+switch(currentMenu) {   
+case 0:
+currentMenu = 1;
+break;
+
+case 1:  //shows temp and humidity default case
+lcd.setCursor(0,0);
+lcd.print("Temp: 35");
+
+lcd.setCursor(0,1);
+lcd.print("Hum: 50");
+
+break;                                  //remember to turn mainmenu variable to false when getting into sub menus and change it back as you go into main menu
+                    //this will help me differentiate between main menu and sub menu variables and also the counters.
+
+case 2:  //Motor settings  
+
+lcd.setCursor(0,0);
+lcd.write(0);
+lcd.print("Motor settings "); 
+lcd.setCursor(0,1);
+lcd.print(" LCD backlight");
+
+break;                            //to execute a process. makea an if statement saying if the menu matches that number and select button is pressed. start the process
+
+case 3:   //Stop motor
+
+lcd.setCursor(0,0);
+lcd.print(" Motor settings"); 
+lcd.setCursor(0,1);
+lcd.write(0);
+lcd.print("LCD backlight");
+break;
+
+case 4:  //light setting
+
+lcd.setCursor(0,0);
+lcd.write(0);
+lcd.print("Light settings   "); 
+lcd.setCursor(0,1);
+lcd.print(" Time settings   ");
+//add a up or down character to show the user that you can press up and down to change menu 
+break;
+
+case 5:  //Time settings
+
+lcd.setCursor(0,0);
+lcd.print(" Light settings   "); 
+lcd.setCursor(0,1);
+lcd.write(0);   //selected
+lcd.print("Time settings   ");   //this goes into sub menu. make another sub menu switch case when select is pressed it should change into that sub menu and 
+              //when the down button is pressed for 5 sec it should take you back to home
+break;
+
+case 6:
+currentMenu = 5;
+break;
+
+
+}
+}
+
+//--------------------Setting up led rate function--------------------
+
+void ledRate() {
+ if ( debouncerup.fell() ) {  // Call code if button transitions from HIGH to LOW
+  lcd.clear();
+  counter= counter + 50;
+  lcd.setCursor(0,0);
+  lcd.print("Counter:");
+  lcd.setCursor(9,0);
+  lcd.print(counter);
+  return;
+ }
+
+ if ( debouncerdown.fell() ) {  // Call code if button transitions from HIGH to LOW
+  lcd.clear();
+  counter = counter-50;
+  lcd.setCursor(0,0);
+  lcd.print("Counter:");
+  lcd.setCursor(9,0);
+  lcd.print(counter);
+  return;
+ }
+ 
+}
+
+//-------------------Blink led function-------------------
+
+
+void blinkLed() {
+ if(currentMillis - previousMillis >= counter) {
+  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+  previousMillis = currentMillis;
+ }
+}
+
+
+//--------------------Update Menu function--------------------
+
+void calculateMenu() {  
+ if(mainMenu == true) {
+ if(debouncerup.fell()){
+  if(currentMenu < menuSize) {
+  currentMenu = currentMenu + 1;
+   }
+ }
+  if(debouncerdown.fell()) {
+    if(currentMenu > 0) {
+      currentMenu = currentMenu - 1;
+    }
+  }    
+}
+}
+
+/*--------------------Go home function--------------------
+
+void goHome() {
+  //when back button is pressed for 5 sec 
+  currentMenu = 1;
+  submenu = initial state;
+}
+*/

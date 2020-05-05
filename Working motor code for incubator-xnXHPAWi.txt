@@ -1,0 +1,136 @@
+#include <Bounce2.h>
+ 
+//int function = 0;
+//bool triggerStart = false;   //trigger to start motor
+//bool triggerStop = false;   // trigger to stop motor
+//bool goRight = false;
+//bool goLeft = false;
+//bool isTime = false;
+ 
+const byte motorRightPin = 4;
+const byte motorLeftPin = 3;
+const byte limitSwitchLeftPin = 7;
+const byte limitSwitchRightPin = 8;
+const byte triggerPin = 11;
+ 
+//bool limitSwitchLeftState;
+//bool limitSwitchRightState;
+//bool triggerState;
+//bool prevS1State = 0;
+//bool prevS2State = 0;
+//bool startMotor = 0;
+ 
+//bool wasGoingLeft;
+//bool wasGoingRight;
+//bool motorStopped;
+ 
+//bool high = LOW; //since switches are inverted. when its low. it will be high
+//bool low = HIGH;
+ 
+Bounce limitSwitchLeft = Bounce();
+Bounce limitSwitchRight = Bounce();
+Bounce triggerButton = Bounce();  //trigger for motor
+ 
+void setup() {
+  // put your setup code here, to run once
+ 
+  pinMode(motorRightPin, OUTPUT);
+  pinMode(motorLeftPin, OUTPUT);
+  digitalWrite(motorRightPin, LOW);
+  digitalWrite(motorLeftPin, LOW);
+ 
+  limitSwitchLeft.attach(limitSwitchLeftPin, INPUT_PULLUP);
+  limitSwitchLeft.interval(50);
+ 
+  limitSwitchRight.attach(limitSwitchRightPin, INPUT_PULLUP);
+  limitSwitchRight.interval(50);
+ 
+  triggerButton.attach(triggerPin, INPUT_PULLUP);
+  triggerButton.interval(25);
+ 
+  Serial.begin(9600);
+  //assuming motor is already one one junction
+  Serial.println("Incubator starting. motor is now at rest");
+ 
+  delay(2000);
+}
+ 
+enum states { STATE_IDLE, STATE_MOVING_RIGHT, STATE_MOVING_LEFT };
+ 
+int currentState = STATE_IDLE;
+ 
+void loop() {
+  // put your main code here, to run repeatedly:
+ 
+  limitSwitchLeft.update();
+  limitSwitchRight.update();
+  triggerButton.update();
+ 
+  bool limitSwitchLeftState = limitSwitchLeft.read();   //switch are input pullup. high state is zero
+  bool limitSwitchRightState = limitSwitchRight.read();
+  bool startMotor = false;
+  
+  switch (currentState) {
+    case STATE_IDLE:
+      // motor is off, waiting for trigger button to be pressed
+      if (triggerButton.fell())
+      {
+        Serial.println("button to trigger start motor has been presssed");
+        // figure out which way to move
+        if (limitSwitchLeftState == HIGH && limitSwitchRightState == LOW)
+        {
+          Serial.println("Moving right now");
+          digitalWrite(motorRightPin, HIGH);
+          digitalWrite(motorLeftPin, LOW);
+          currentState = STATE_MOVING_RIGHT;
+        }
+        else if (limitSwitchLeftState == LOW && limitSwitchRightState == HIGH)
+        {
+          Serial.println("Moving left now");
+          digitalWrite(motorRightPin, LOW);
+          digitalWrite(motorLeftPin, HIGH);
+          currentState = STATE_MOVING_LEFT;
+        }
+        else if (limitSwitchLeftState == HIGH && limitSwitchRightState == HIGH)
+        {
+          // neither limit switch is tripped, arbitrarily move left
+          Serial.println("No limit switches detected, moving left now");
+          digitalWrite(motorRightPin, LOW);
+          digitalWrite(motorLeftPin, HIGH);
+          currentState = STATE_MOVING_LEFT;
+         }
+        
+        else
+        {
+          Serial.println("Both limit switches detected, program halted");
+          digitalWrite(motorRightPin, LOW);
+          digitalWrite(motorLeftPin, LOW);
+          while (1); // loop forever
+        }
+      }
+      break;
+ 
+    case STATE_MOVING_RIGHT:
+      // moving right so only check right limit switch
+      if (limitSwitchRightState == HIGH && limitSwitchLeftState == LOW)   
+      {
+        Serial.println("Motor reached right. motor stopping");
+        digitalWrite(motorRightPin, LOW);
+        digitalWrite(motorLeftPin, LOW);
+        currentState = STATE_IDLE;
+      }
+      break;
+ 
+    case STATE_MOVING_LEFT:
+      // moving left so only check left limit switch
+ 
+      if (limitSwitchLeftState == HIGH && limitSwitchRightState == LOW)
+      {
+        Serial.println("Motor has reached left. Motor stopping");
+        digitalWrite(motorRightPin, LOW);
+        digitalWrite(motorLeftPin, LOW);
+        currentState = STATE_IDLE;
+      }
+      break;
+  }
+}

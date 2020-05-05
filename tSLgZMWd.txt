@@ -1,0 +1,171 @@
+#include <Bounce2.h>
+int function = 0;
+bool triggerStart = false;   //trigger to start motor
+bool triggerStop = false;   // trigger to stop motor
+bool goRight = false;
+bool goLeft = false;
+bool isTime = false;
+
+const byte m1 = 4;
+const byte m2 = 3;
+const byte s1 = 7;
+const byte s2 = 8;
+const byte trigger = 11;
+bool s1State; 
+bool s2State;
+bool triggerState;
+bool prevS1State = 0;
+bool prevS2State = 0;
+bool startMotor = 0;
+
+bool wasGoingLeft; 
+bool wasGoingRight;
+bool motorStopped;
+
+bool high = LOW; //since switches are inverted. when its low. it will be high
+bool low = HIGH;
+
+Bounce debouncer1 = Bounce();
+Bounce debouncer2 = Bounce();
+Bounce debouncer3 = Bounce();  //trigger for motor
+
+void setup() {
+  // put your setup code here, to run once
+
+  pinMode(m1, OUTPUT);
+  pinMode(m2, OUTPUT);
+  
+  pinMode(s1, INPUT_PULLUP);
+  debouncer1.attach(s1);
+  debouncer1.interval(25);
+  
+  pinMode(s2, INPUT_PULLUP);
+  debouncer2.attach(s2);
+  debouncer2.interval(25);
+  
+  pinMode(trigger, INPUT_PULLUP);
+  debouncer3.attach(trigger);
+  debouncer3.interval(25);
+  
+  Serial.begin(9600);
+  //assuming motor is already one one junction 
+   Serial.println("Incubator starting. motor is now at rest");
+   
+  delay(2000);
+  
+  
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+
+  bool m1State = digitalRead(m1);
+  bool m2State = digitalRead(m2);
+  
+  debouncer1.update();
+  debouncer2.update();
+  debouncer3.update();
+  
+  triggerState = debouncer3.read(); //trigger 
+  s1State = debouncer1.read();   //switch are input pullup. high state is zero
+  s2State = debouncer2.read();
+  //startMotor = 0;   //turn off this trigger in order to not loop back. 
+
+  
+ if(debouncer3.fell()) //when trigger button is pressed
+   {
+    startMotor = true; 
+    Serial.println("button to trigger start motor has been presssed");
+   }
+
+ if(startMotor == 1) 
+   {
+    switch(function) 
+    {
+    case 0:   //checks if time
+      isTime = 1;
+      function = 1;
+      Serial.println("At case 0. checking if its time");
+      
+
+    break;
+
+    case 1:   //its time so its going to determine where it is
+    if(isTime == 1) 
+    {
+      Serial.println("trigger is pressed proceeding to case 1");
+      if(s1State == 1 && s2State == 0)   //if one of the switch is high. label is left
+      {
+        
+        goRight =1;   //its left right now. so need to go right
+        goLeft = 0;
+        Serial.println("At case 1. determind motor is towards left and going right now");
+        function = 2;
+      } 
+      if(s1State == 0 && s2State == 1)  //if one of the switch is high. label is right
+      {
+        goLeft = 1;    //is at right. go left
+        goRight = 0;
+        Serial.println("At case 1. determind motor is towards right and going left now");
+        function = 2;
+      }
+    }
+    break;
+
+    case 2:    //once direction to go is determined. go that way
+    if(goRight== 1)   //at s1  or left
+    {
+      Serial.println("At case 2. Going Right");
+      digitalWrite(m1, HIGH);
+      digitalWrite(m2, LOW);
+      function = 3;
+      
+    }
+    if(goLeft == 1)    //at s2 or right
+    {
+      Serial.println("At case 2. Going left");
+      digitalWrite(m1, LOW);
+      digitalWrite(m2, HIGH);
+      function = 3;
+    }
+    break;
+
+
+
+
+    case 3:    //going to check if the motor has reached the desired switch yet
+    if(goRight == 1)   //if motor is going towards right so we are going to monitor the right switch only
+    {
+      if(s2State == 1)     //go right until s2 has become high
+      {
+        digitalWrite(m1, LOW);
+        digitalWrite(m2, LOW);
+        Serial.println("case 3. Motor reached right. motor stopping");
+        //stop motor
+        function = 4;
+      }
+    }
+
+    if(goLeft == 1)  //if motor is going left
+    {
+      if(s1State == 0) //check to see if left switch is touched
+      {
+        digitalWrite(m1, LOW);
+        digitalWrite(m2, LOW);
+        Serial.println("At case 3.motor has reached left. Motor stopping");
+        
+        function = 4;
+        
+      }
+    }
+    break;
+
+    case 4:
+    Serial.print("At case 4.motor should have stopped. pressing the trigger will repeat the cycle");
+    Serial.println("exiting the switch case and waiting for the trigger");
+    isTime = 0;  
+    function = 0;
+    break;
+  }
+}
+}

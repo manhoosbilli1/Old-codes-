@@ -1,0 +1,72 @@
+this code asssume that i would have already calibrated the motor to a tilt position meaning one button is going to be high while the other is going to be LOW   which i can. no problem
+this code also assumes that both the switches are debounced 
+
+
+
+
+---------------leftbuttonstatemachine-------------------
+
+switch (leftButtonState) {          //when one leftsw goes high
+case 0:                             // stop/reset state
+readSw();   						//this will contain debounce mechanism stop the values of motor and 
+stopMotor();  						 //will read the sw state stop the motor and jump to next delay
+case = 1;
+break;
+}
+
+case 1: 							//Delay/timer state
+//readSw();  							// this will read switch and only start the function if LeFt switch is HIGH. i dont know  it //would need to read it. infact i think this function is not necessary since we already confirmed that the left switch is already high 
+									//get the same 
+if(currentMillis - lastReversed >= 1000*60*60){   //check if delay expires which is 1 hour
+ case = 2;	                                        //once the delay expires move on to the next case
+} 
+break;
+
+case 2;  //reverseDirection{
+if(rightButtonState == LOW) {   //this will execute the following statements in the rightbutton state is LOW as soon as it becomes high 						 
+                                 //it should stop 
+digitalWrite(in1, HIGH);
+digitalWrite(in1, LOW);  //how do i tell the difference between the first HIGH when the motor started
+//and the next high when the motor is to be stoped. this is assuming i connect both the switches to one pin
+//ok lets just split it for now and see what happens   
+} 
+else 
+stopMotor();    //once the other switch is HIGH it will stop the motor and return to case 0 where it will read
+case = 0;          //i would like the switch case to stop here. even if it jumps back to case 0 it should not activate as the button is 
+                 //not high anymore
+         
+
+
+
+------------------------RIGHTBUTTON machine state--------------------------
+
+//this state will contain its own rightbutton debounce state 
+switch (rightButtonState) {          //when one leftsw goes high
+case 0:   // stop/reset state
+//readSw();   //this will contain if statement and proceed only if right button is pressed and
+stopMotor();	       //also contain debounce mechanism  
+case = 1;
+break;
+
+
+case 1: //Delay/timer state
+//readSw();  // this will read switch and only start the function if the delay has
+if(currentMillis - lastReversed >= 1000*60*60){   //check if delay expires
+ case = 2;	   //if the time is not yet equal to interval the if will fale and case will not be jumped
+			//when the interval expires case will jumped to delay
+} 
+}
+break;
+
+case 2;  //reverseDirection{
+if(leftButtonState == LOW) {   //will keep the motor running as long at the other switch is low as soon as it becomes high the function 
+                               //is going to stop
+digitalWrite(in1, LOW);   // will wait for the other button to go high once it goes high motor stops
+digitalWrite(in1, HIGH);  //how do i tell the difference between the first HIGH when the motor started
+}							//and the next high when the motor is to be stoped. this is assuming i connect both the switches to one pin
+							//ok lets just split it for now and see what happens 
+else { 
+stopMotor();    //once the other switch is HIGH it will stop the motor and return to case 0 where it will read
+case = 0;
+//that the left button is not pressed and i will make another switch case once the right one is on. 
+}

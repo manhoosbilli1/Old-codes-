@@ -1,0 +1,118 @@
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <Arduino.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include "DHT.h"
+const char* ssid = "Shoaib";
+const char* password = "A01234567890";
+#define DHTPIN 32
+#define oneWireBus  33
+#define DHTTYPE DHT22
+#define moistPin  35
+#define LDRPin  34
+int LDRValue = 0;
+int light;
+String values;
+unsigned long currentMillis;
+unsigned long previousMillis;
+const int interval = 2500;
+DHT dht(DHTPIN, DHTTYPE);
+OneWire oneWire(oneWireBus);
+DallasTemperature sensors(&oneWire);
+ 
+void setup() {
+  // Start the Serial Monitor
+  Serial.begin(115200);
+  sensors.begin();  //starts ds18b20
+  dht.begin();   //give 2 second delay to all sensors
+}
+ 
+ 
+void loop() {
+  //get values and send to website only once and then go deep sleep
+  currentMillis = millis();
+  if (currentMillis - previousMillis > interval) {
+    getSensorValues();
+    //readBattery();   not configured yet
+    delay(1);
+    connectWifi();
+    delay(100);
+    postValues();
+    delay(100);
+    disconnectWifi();
+    delay(100);
+    previousMillis = currentMillis;
+  }
+}
+ 
+String readBattery() {
+  uint8_t percentage = 100;
+  float voltage = analogRead(35) / 4096.0 * 7.23;      // LOLIN D32 (no voltage divider need already fitted to board.or NODEMCU ESP32 with 100K+100K voltage divider
+  //float voltage = analogRead(39) / 4096.0 * 7.23;    // NODEMCU ESP32 with 100K+100K voltage divider added
+  //float voltage = analogRead(A0) / 4096.0 * 4.24;    // Wemos / Lolin D1 Mini 100K series resistor added
+  //float voltage = analogRead(A0) / 4096.0 * 5.00;    // Ardunio UNO, no voltage divider required
+  Serial.println("Voltage = " + String(voltage));
+  percentage = 2808.3808 * pow(voltage, 4) - 43560.9157 * pow(voltage, 3) + 252848.5888 * pow(voltage, 2) - 650767.4615 * voltage + 626532.5703;
+  if (voltage > 4.19) percentage = 100;
+  else if (voltage <= 3.50) percentage = 0;
+  return String(percentage) + "%";
+}
+ 
+void getSensorValues() {
+  sensors.requestTemperatures();
+  float soilTemp = sensors.getTempCByIndex(0);
+  float h = dht.readHumidity();
+  values += "soilTemp=" + String(h);
+  float t = dht.readTemperature();
+  if (isnan(h) || isnan(t)) {
+    Serial.println(F("Failed to read from DHT sensor!")); //print to server
+    return;
+  }
+  LDRValue = analogRead(LDRPin); // read the value from the LDR
+  light = map(ldrValue, 0, 4095, 0, 100); //map light value as percentage
+  moistVal = analogRead(moistPin);
+  moisture = map(moistVal, 0, 4095, 100, 0);
+}
+ 
+ 
+void postValues() {
+  HTTPClient http;
+  http.begin("https://finalyearprojectnuml.000webhostapp.com/fyp.php");
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  int httpResponseCode = http.POST(String(values));
+  if (httpResponseCode > 0) {
+    String response = http.getString();
+    Serial.println(httpResponseCode);
+    Serial.println(response);
+  }
+  else {
+    Serial.print("Error on sending post");
+    Serial.println(httpResponseCode);
+  }
+  http.end();
+}
+ 
+ 
+void connectWifi() {
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP Address");
+  Serial.println(WiFi.localIP());
+}
+ 
+ 
+void disconnectWifi(){
+  WiFi.disconnect();
+  while(WiFi.status() == WL_CONNECTED){
+    delay(500);
+    Serial.println("Wifi failed to disconnect");
+  }
+  else
+  Serial.println("Wifi disconnected succesfully");
+}

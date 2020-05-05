@@ -1,0 +1,121 @@
+#include <Bounce2.h>
+const byte m1 = 4;
+const byte m2 = 3;
+const byte s1 = 7;
+const byte s2 = 8;
+const byte trigger = 11;    //set trigger to a switch just for example purpose. its originally going to be trigger by time
+bool s1State; 
+bool s2State;
+bool triggerState;
+bool prevS1State = 0;
+bool prevS2State = 0;
+bool startMotor = 0;
+
+bool wasGoingLeft; 
+bool wasGoingRight;
+bool motorStopped;
+
+bool high = LOW; //since ONLY switches are inverted. when its low. it will be high
+bool low = HIGH;
+
+Bounce debouncer1 = Bounce();
+Bounce debouncer2 = Bounce();
+Bounce debouncer3 = Bounce();  //trigger for motor
+
+void setup() {
+  // put your setup code here, to run once
+
+  pinMode(m1, OUTPUT);
+  pinMode(m2, OUTPUT);
+  
+  pinMode(s1, INPUT_PULLUP);
+  debouncer1.attach(s1);
+  debouncer1.interval(25);
+  
+  pinMode(s2, INPUT_PULLUP);
+  debouncer2.attach(s2);
+  debouncer2.interval(25);
+  
+  pinMode(trigger, INPUT_PULLUP);
+  debouncer3.attach(trigger);
+  debouncer3.interval(25);
+  
+  Serial.begin(9600);
+  //assuming motor is already one one switch
+  wasGoingRight = true;
+  wasGoingLeft =false;
+  delay(2000);
+  
+  
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  Serial.println("in loop");
+  bool m1State = digitalRead(m1);
+  bool m2State = digitalRead(m2);
+  
+  debouncer1.update();
+  debouncer2.update();
+  debouncer3.update();
+  
+  triggerState = debouncer3.read(); //trigger 
+  s1State = debouncer1.read();   //switch are input pullup. high state is zero
+  s2State = debouncer2.read();
+
+
+  
+  if(debouncer3.fell()) //when trigger button is pressed
+   {
+    startMotor = true; 
+    Serial.println("button to trigger start motor has been presssed");
+   }
+   if(startMotor) 
+      {
+        
+         if(wasGoingLeft) {         
+          goRight();
+          delay(2000);  //wait for both of the switches to be released
+          if(s1State == low || s2State == low) {    //if it touches one of the switches
+            stopMotor();
+            wasGoingRight = true; //to remember next time that it was originally going right 
+            startMotor = false;  //to get out of function and continue loop
+          }
+    
+         if(wasGoingRight) {
+          goLeft();
+          delay(2000);  //wait for both of the switches to be released
+          if(s1State == low || s2State == low) {    //if it touches one of the switches
+            stopMotor();
+            wasGoingLeft = true; //to remember next time that it was originally going right 
+            startMotor = false;
+           }    
+          }
+        }
+      }
+}
+
+//---------------functions
+
+   void goLeft() {
+    digitalWrite(m1, HIGH);
+    digitalWrite(m2, LOW);
+    Serial.println("going left");
+    wasGoingLeft = true; 
+    wasGoingRight = false; 
+   }
+
+   void goRight() {
+    digitalWrite(m1, LOW);
+    digitalWrite(m2, HIGH);
+     Serial.println("going right");
+     wasGoingLeft = false;
+     wasGoingRight = true;
+   }
+
+   void stopMotor() {
+    digitalWrite(m1, LOW);
+    digitalWrite(m2, LOW);
+     Serial.println("motor stopped");
+     motorStopped = true;
+   }

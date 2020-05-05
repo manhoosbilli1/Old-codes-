@@ -1,0 +1,101 @@
+
+#include <Servo.h>
+
+Servo base;  // create servo object to control a servo
+Servo claw;
+Servo clawRotate;
+Servo pivot;
+Servo upperPivot; 
+
+int basePos; 
+int clawPos;
+int clawRotatePos;  
+int pivotPos;
+int upperPivot; 
+int specificPos;
+
+bool goingToDefaultFlag;
+bool goingToObjectFlag;
+bool goingToSpecificFlag;
+
+int center = 90;
+int right = 180;
+int left = 0;
+int Up = 180;
+int UpCenter = 90;
+int Down = 0;
+
+void setup() {
+  base.attach(9);  // attaches the servo on pin 9 to the servo object
+  claw.attach(10);
+  clawRotate.attach(5);
+  pivot.attach(6);
+  upperPivot.attach(7);
+  
+}
+enum state{DECIDING, GOINGDEFAULT, GOINGTOSPECIFIC, GOINGTOOBJECT, OPENINGCLAW, CLOSINGCLAW};
+int currentState = DECIDING;
+void loop() {
+ goingToDefault();
+ goingToObject();
+ goingToSpecific();
+ openingClaw();
+ closingClaw();
+}
+
+
+void goingToDefault(){ 
+  if(goingToDefaultFlag == true) {
+    base.write(0);
+    pivot.write(0);
+    upperPivot.write(0);
+    claw.write(0);
+    clowRotate.write(0);
+    delay(1000);
+    goingToDefaultFlag = false; 
+  }
+}
+
+void goingToObject(){     //two flags need to be true going to object and going to default one. 
+  if(goingToObjectFlag == true){
+  goingToDefault();
+  delay(500);
+  base.write(basePos);
+  pivot.write(pivotPos);
+  claw.write(clawPos);
+  }
+}
+
+void goingToSpecific() {//two flags need to be true goingtoobject and goingtodefault one. 
+  if(goingToSpecificFlag == true){
+      goingToDefault();   //going to set the motor to default
+      base.write(basePos);
+      delay(500);
+      goingToSpecifcFlag = false; 
+    }
+}
+
+void armFunction(){
+  if(armActivated == true) {
+    switch(currentState) {
+      case DECIDING:
+      
+      break;
+    
+      case GOINGTODEFAULT:
+      break;
+    
+      case GOINGTOSPECIFIC:
+      break; 
+    
+      case GOINGTOOBJECT:
+      break;
+    
+      case OPENINGCLAW:
+      break;
+    
+      case CLOSINGCLAW:
+      break;
+    }
+   }
+ }

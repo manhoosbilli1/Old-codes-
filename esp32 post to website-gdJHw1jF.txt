@@ -1,0 +1,79 @@
+#include <Arduino.h>           //don't need to add this one...already included in arduino
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include "DHT.h"
+
+#define DHTPIN 32
+#define oneWireBus  33
+#define DHTTYPE DHT22
+#define moistPin  35
+#define LDRPin  34
+DHT dht(DHTPIN, DHTTYPE);
+OneWire oneWire(oneWireBus);
+DallasTemperature sensors(&oneWire);
+const char* ssid = "SSID";
+const char* password = "password";
+float soilTemperature, h, t, lightIntensity, soilMoisture;
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(115200);
+  sensors.begin();  //starts ds18b20
+  dht.begin();   //give 2 second delay to all sensors
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP Address");
+  Serial.println(WiFi.localIP());
+
+}
+
+
+void loop() {
+  HTTPClient http;
+  http.begin("https://finalyearprojectnuml.000webhostapp.com/fyp.php");
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+ 
+
+  String Data = "humidity= " + String(h);
+  Data += "&air_temp= " + String(t);
+  Data += "&humidity= " + String(h);
+  Data += "&temp=" + String(soilTemperature);                                      //change the order of data if you want. just keep the format similar
+  Data += "&soil_moisture=" + String(soilMoisture);
+  Data += "&light_intensity=" + String(lightIntensity);
+
+
+  int httpResponseCode = http.POST(Data);
+  if (httpResponseCode > 0) {
+    String response = http.getString();                //once you upload the code open serial monitor to show response code sent from website
+    Serial.println(httpResponseCode);
+    Serial.println(response);
+  }
+  else {
+    Serial.print("Error on sending post");
+    Serial.println(httpResponseCode);
+  }
+  http.end();
+  delay(2000);
+
+}
+
+
+
+void getSensorValues() {
+  sensors.requestTemperatures();
+  float soilTemp = sensors.getTempCByIndex(0);
+  float h = dht.readHumidity();
+  t = dht.readTemperature();
+  if (isnan(h) || isnan(t)) {
+    Serial.println(F("Failed to read from DHT sensor!")); //print to server
+    return;
+  }
+  lightIntensity = analogRead(LDRPin); // read the value from the LDR
+  soilMoisture = analogRead(moistPin);
+}

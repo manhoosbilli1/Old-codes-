@@ -1,0 +1,142 @@
+//defining pins
+boolean swStatus1=0;    //boolean to read the switch status and store it in here    
+boolean swStatus2=0;    //boolean to read the switch status and store it in here          
+const byte swPin1=6;  //switch 1 pin
+const byte swPin2=5;  //switch 2 pin 
+const byte in1=4;    //motordirection 1 pin
+boolean  in1Status;
+boolean in2Status;      //l298N motor controller pins 
+const byte in2=3;      //motordirection 2nd pin
+const byte buzzer = 10;  //buzzer's pin 
+
+//defining timing variables
+unsigned long currentMillis=0;    //stores the current milli seconds of arduino 
+unsigned long lastReverse=0;      //stores the ms of the last time motor was reverse    //timer to go off and start action
+const int turnInterval= 5000;     //marks the interval of 1s for timing 
+
+void setup() {
+  pinMode(swPin1, INPUT);
+  pinMode(swPin2, INPUT);
+  pinMode(in1, OUTPUT);
+  pinMode(in2, OUTPUT);
+  pinMode(buzzer,OUTPUT);
+  Serial.begin(9600);
+  currentMillis = millis();
+  swStatus1 = digitalRead(swPin1);                  //buckets for switches to make it boolean
+  swStatus2 = digitalRead(swPin2);
+ 
+  initialCalibration();
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  currentMillis = millis();       
+  //marks the timer
+
+  //buckets for switches to make it boolean
+  swStatus1 = digitalRead(swPin1);                  
+  swStatus2 = digitalRead(swPin2);             //will run backup to see if everything is correct. if yes then proceed.
+  in1Status = digitalRead(in1);                //will remember the status of these pins
+  in2Status = digitalRead(in2);
+  
+  //the motors will stay low until the period has expired which is 1 hour 
+  //the main function is 
+
+  checkAndReverse();
+  
+}
+
+
+//                        FUNCTIONS                    //
+
+void initialCalibration() {
+
+if((swStatus1 == 0) && ( swStatus2 == 0)){     //the following program will not trigger if one of the switches is high
+    //and the this function should end when one of the switches becomes high    
+    //calibrates the tray at the beggining to get the initial point 
+  
+  
+    digitalWrite(in1, HIGH);    
+    digitalWrite(in2, LOW); 
+    //go in this direction until one of the switches becomes high and the tray is at 45 degree   
+                           
+    //JUST goes in this direction until either switch is pressed
+    
+   } else {        
+    //once the upper condition is no longer true, that 'if statement' will stop working and the following will work 
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, LOW); 
+
+    //if the starting if condition becomes false stop the motors
+    //change the states manually. i dont know if this is necessary 
+    in1Status = LOW; 
+    in1Status = LOW;
+    swStatus1 = digitalRead(swPin1);
+    swStatus2 = digitalRead(swPin2);
+   }
+}
+
+
+//           MAIN FUNCTION BREAK IT DOWN   //
+
+void checkAndReverse() {
+  // i do not know if i should mark the timer here before the next command or should i do it after the switch has been deteced  
+    
+  //before executing the next commands it will wait for that 1 hour to expire 
+  //motors should already be in the low positions; not moving one of the switches must be high 
+  //and in1 and in2 should both be low
+  if(swStatus1 == HIGH && swStatus2 == LOW || swStatus1 == LOW && swStatus2 == HIGH) { 
+         
+  
+    // i am doubtful about the syntax maybe it is wrong.           
+    //no matter which position it is in. once all of the above conditions are true the next code will begin
+    
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, LOW);                     // the motor is already stopped no need for this   
+                                 
+    //stop the motor until the delay has expired, this is where problem starts
+    //idk why but i think if i set these variables everytime, it will be accurate 
+    //i see no harm in it.
+    
+    swStatus1 = digitalRead(swPin1);                                            
+    swStatus2 = digitalRead(swPin2);                                              
+    in1Status = digitalRead(in1);
+    in2Status = digitalRead(in2);
+                                              
+    //i do not know if the 'if nested inside the if' statments will work once the switches are both LOW and the motor starts moving
+    
+   // if ((swStatus1 == LOW) && (swStatus2 == LOW)) {       //these can't be low because the tray is still in tilt position from initial calibration     
+  //wait for the delay to expire. which is 1 hour actually
+  //this is what the problem is. i want the motor to start in opposite direction 
+  //if i do what i have done in the following code, since both of 'instates' are LOW already and when it plugs in the opposite value
+  //the motor would stop moving. 
+  //how do i change only 
+
+  if(currentMillis - lastReverse >=  turnInterval) {
+    digitalWrite(in1, !in1Status);        //reverses the direction                   
+    digitalWrite(in2, !in2Status);     
+                      
+    //i just dont know how to time this. if i say make time the trigger what if the motor stops between the
+    
+    //motion when it hasn't reached the next button and if i choose to make the swstatuses the trigger then how do i tell it that when the delay is finished
+    
+    //opposite the direction until the switches change direction and one is high the other is low
+    
+    in1Status= digitalRead(in1);                                //reads the motor pins agains
+    in2Status= digitalRead(in2);
+    swStatus1 = digitalRead(swPin1);
+    swStatus2 = digitalRead(swPin2);                          //reads the sw pins again
+                                                             //i do not know if i should else if or else or just make another if statements
+
+    if (swStatus1 == LOW && swStatus2 == HIGH || swStatus1 == HIGH && swStatus2 == LOW) {
+    digitalWrite(in1, !digitalRead(in1));
+    digitalWrite(in2, !digitalRead(in2));           //reverses both statuses which will automatically go the opposite direction
+    in1Status = digitalRead(in1);
+    in2Status = digitalRead(in2);
+    swStatus1 = digitalRead(in1);
+    swStatus2 = digitalRead(in2);
+   
+    }
+   }
+  }
+}

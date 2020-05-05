@@ -1,0 +1,177 @@
+#include <Servo.h>
+Servo claw;
+Servo pivot;
+Servo upperPivot;
+Servo clawRotator;
+Servo base;
+bool flag=0;
+bool trigger;
+
+
+void setup() {
+  pivot.attach(5);
+  claw.attach(5);
+  clawRotator.attach(3);
+  upperPivot.attach(11);
+  base.attach(9);
+  demo();
+  flag= true;            //use this flag to run the function once. same flag used in switch case
+  
+}
+
+//this is necessary for the siwtch case function to work
+enum state{Default, pickObject, dropObject};
+int currentState = Default;
+
+
+void loop() {
+   
+}
+//NOTE: kindly keep the order of functions the same. otherwise you might get "function not declared in this scope" Error.
+
+
+/////////////////////////MOVEMENT FUNCTIONS////////////////////////////////// 
+
+
+  void openClaw(){              //the for loop is to move the claw or any other part of the arm slowly 
+   for(int i=30; i<=90; i++){
+   claw.write(i);   //30
+   delay(20);
+   }
+  }
+  void closeClaw(){           
+   for(int i=90; i>=30; i--){
+    claw.write(i);
+    delay(20);
+  }
+  }
+  void movePivotToDefault(){          //moves pivot servo to default position
+    for(int i=40; i<=100; i++){
+      pivot.write(i);   //30
+      delay(20);
+      }
+  }
+  void movePivotToPick() {                //move pivot to a position where it can pick things up.      
+    for(int i=100; i>=10; i--){
+      pivot.write(i);   //30
+      delay(20);
+      }
+  }
+  void moveUpperPivotToDefault(){  
+    for(int i=140; i>=40; i--){
+      upperPivot.write(i);   //30
+      delay(20);
+      }
+  }
+  void moveUpperPivotToPick() {    //can be used for drop as well
+    for(int i=40; i<=140; i++){
+      upperPivot.write(i);   //140
+      delay(20);
+      }
+  }
+  void moveClawRotatorToVertical(){
+     for(int i=90; i<=180; i++){
+      clawRotator.write(i);   //140
+      delay(15);
+      }
+  }
+  void moveClawRotatorToHorizontal(){
+     for(int i=180; i>=90; i--){
+      clawRotator.write(i);   //140
+      delay(20);
+      }
+  }
+  void moveBaseToDefault(){       //always use movebasetodrop function first before using this. 
+    base.write(180); //move right
+    delay(550);
+    base.write(90);  //stop base 
+  }
+  void moveBaseToDrop(){      //if base is not moving to drop. try to calibrate it manually first with its claw facing forward
+    base.write(0);  //0 is for going left. replace 0 with 180 for going right and and 180 in the next function with zero
+    delay(550);
+    base.write(90);  //stop base 
+  }
+
+///////////////////////////////////////////MOVEMENT FUNCTIONS FINISHED/////////////////////////////////
+  
+ void defaultFunction() {
+      movePivotToDefault();
+      moveClawRotatorToVertical();
+      closeClaw();
+      moveUpperPivotToDefault(); 
+   }
+
+ void pickFunction(){
+  moveClawRotatorToHorizontal();
+  openClaw();
+  moveUpperPivotToPick();
+  movePivotToPick();
+  
+ }
+
+ void fromDropToDefault(){     //
+  closeClaw();
+  movePivotToDefault();
+  moveUpperPivotToDefault(); 
+ }
+
+ void dropFunction(){
+  
+  moveBaseToDrop();
+  delay(1000);
+  pickFunction();
+  openClaw();
+  delay(500);
+  closeClaw();
+ }
+
+ 
+////////////////////////////
+
+
+void armFunction(){
+  //if trigger true;
+    switch(currentState) {
+      case Default:
+      if(flag == true){     
+      Serial.println("triggered");
+      currentState = pickObject;
+      }
+      break;
+   
+      case pickObject:
+      Serial.println("Picking Object");
+      pickFunction();
+      currentState = dropObject;
+      
+      break;
+   
+      case dropObject:
+      Serial.println("Dropping Object");
+      dropFunction();   
+      Serial.println("going back to default");
+      fromDropToDefault();
+      flag = false;
+      currentState = Default;
+      break;
+   
+    }
+   }
+/////////////////////////////////////////MAIN FUNCTION//////////////////////////////////////////////////////////
+
+//you can use this function in setup if you want to demo the whole working of the arm. you can use the flag technique to 
+//run this only once when called in loop. 
+ void demo(){
+  defaultFunction(); 
+  delay(1000);
+  pickFunction();
+  delay(1000);
+  fromDropToDefault();
+  moveBaseToDrop();
+  moveUpperPivotToPick();
+  movePivotToPick();
+  openClaw();
+  fromDropToDefault();
+  moveBaseToDefault();
+  
+ }

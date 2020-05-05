@@ -1,0 +1,610 @@
+
+//libraries
+
+#include <Bounce2.h>
+#include <Wire.h> 
+#include <LiquidCrystal_I2C.h>
+#include "DS1307.h"
+#include "cactus_io_DHT22.h"
+DS1307 clock;//define a object of DS1307 class
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+//definitions
+
+#define up 7
+#define down 6
+#define select 5
+#define LED_PIN 13
+#define light 3   //heater pin 
+#define buzzer A3  //buzzer pin 
+#define dehumidifier_fan A4   //dehumidifier fan 
+#define heater 8
+#define DHT22_PIN 9
+DHT22 dht(DHT22_PIN);
+
+//counters  								// i know i am using only a few of these but i plan to use most of them later
+
+unsigned int counter = 0;
+unsigned long currentMillis;
+unsigned long previousMillis;
+unsigned long previousMillis0;
+unsigned long previousMillis1;
+unsigned long previousMillis2;
+
+//values 
+
+const int temp_update_interval = 3000;
+const float max_temp = 35.5; 	          //fill with required numbers
+const int max_humidity = 50;
+const int min_temp = 34.5;
+const int min_humidity = 30;
+
+//lcd 
+
+int menuSize = 8;
+bool mainMenu = true;
+int currentMenu =0;
+int subMenu = 0;
+
+//Flags
+
+bool high_humid = 0; 
+bool high_temp = 0;         
+bool low_humid =0;
+bool low_tmep =0;
+bool sensor_ok= 1;
+bool RTC_ok =1;
+bool emergency = 0;
+
+int hour_now, minute_now, second_now, month_now, year_now, day_now; 
+
+byte arrow[] = {
+  B00000,
+  B00100,
+  B00010,
+  B11111,
+  B00010,
+  B00100,
+  B00000,
+  B00000
+};
+
+byte degree[] = {
+  B00000,
+  B01110,
+  B01010,
+  B01110,
+  B00000,
+  B00000,
+  B00000,
+  B00000
+};
+
+byte celcius[] = {
+  0x00,
+  0x06,
+  0x09,
+  0x08,
+  0x08,
+  0x09,
+  0x06,
+  0x00
+};
+
+byte on[] = {
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x12,
+  0x14,
+  0x18,
+  0x10
+};
+
+byte off[] = {
+  0x00,
+  0x00,
+  0x00,
+  0x11,
+  0x0A,
+  0x04,
+  0x0A,
+  0x11
+};
+
+Bounce debouncerup = Bounce(); // Instantiate a Bounce object
+Bounce debouncerdown = Bounce(); // Instantiate a Bounce object
+Bounce debouncerselect = Bounce(); 
+
+void setup() {
+
+  clock.begin();
+  clock.fillByYMD(2018,10,17);//Jan 19,2013
+  clock.fillByHMS(15,49,05);//15:28 30"
+  clock.fillDayOfWeek(WED);//Saturday
+  clock.setTime();//write time to the RTC chip
+  debouncerup.attach(up,INPUT_PULLUP); // Attach the debouncer to a pin with INPUT_PULLUP mode
+  debouncerdown.attach(down, INPUT_PULLUP);
+  debouncerselect.attach(select, INPUT_PULLUP);
+  pinMode(LED_BUILTIN,OUTPUT); // Setup the LED
+  pinMode(buzzer, OUTPUT);
+  pinMode(dehumidifier_fan, OUTPUT);
+  pinMode(light, OUTPUT);
+  pinMode(heater, OUTPUT);
+  debouncerup.interval(50);
+  debouncerdown.interval(50); // Use a debounce interval of 25 milliseconds
+  debouncerselect.interval(50);
+  dht.begin();
+  lcd.begin();
+  lcd.backlight();
+  lcd.setCursor(0,0);
+  lcd.print("  Welcome to the     ");
+  lcd.setCursor(0,1);
+  lcd.print("   Smart-bator     ");
+  lcd.createChar(0, arrow);                   
+  lcd.createChar(1, degree);                    /JUST ADDING SOME GRAPHICS
+  lcd.createChar(2, celcius);
+  lcd.createChar(3, on);
+  lcd.createChar(4, off);
+  lcd.home();
+  currentMenu = 1; 
+  delay(3000);
+  lcd.clear();
+  
+
+}
+
+void loop() {
+  currentMillis = millis();
+  updateTime();
+  debouncerup.update();       // Update the Bounce instance
+  debouncerdown.update();
+  debouncerselect.update();
+  regulate_humidity();
+  regulate_temperature();
+  calculateMenu();           //decides to decrement or increment
+  checkMenu();               //shows different text on lcd according to menu system
+  menuSelection();           //CARRIES OUT RESPECTIVE ACTIONS BASED ON THE CURRENTMENU NUMBER
+  
+
+}
+
+
+
+
+//--------------------------------FUNCTIONSSSSSSSS-------------------------------------------------
+
+
+
+
+
+void checkMenu() {
+
+switch(currentMenu) {   
+case 0:
+currentMenu = 1;
+break;
+
+case 1:                 //shows temp and humidity default case
+  
+print_sensor_data();
+
+break;                                  //remember to turn mainmenu variable to false when getting into sub menus and change it back as you go into main menu
+                                        //this will help me differentiate between main menu and sub menu variables and also the counters.
+
+case 2:  //Motor settings  
+lcd.setCursor(0,0);
+lcd.write(0);
+lcd.print("Motor demo           "); 
+lcd.setCursor(0,1); 
+lcd.print(" Off backlight       ");
+
+break;                            //to execute a process. makea an if statement saying if the menu matches that number and select button is pressed. start the process
+
+case 3:   //Stop motor
+lcd.setCursor(0,0);
+lcd.print(" Motor demo         "); 
+lcd.setCursor(0,1);
+lcd.write(0);
+lcd.print("Off backlight         ");       // turn off backlight
+break;
+
+case 4:  //light setting
+lcd.setCursor(0,0);
+lcd.write(0);
+lcd.print("On backlight         "); 
+lcd.setCursor(0,1);
+lcd.print(" Show time            ");
+//add a up or down character to show the user that you can press up and down to change menu 
+break;
+
+case 5:  //show time
+lcd.setCursor(0,0);
+lcd.print(" On backlight                 "); 
+lcd.setCursor(0,1);
+lcd.write(0);   //selected
+lcd.print("Show time             ");   //this goes into sub menu. make another sub menu switch case when select is pressed it should change into that sub menu and 
+              //when the down button is pressed for 5 sec it should take you back to home
+break;
+
+
+case 6:  //  toggle alarm 
+  //digitalWritw(alarmPin, !digitalWrite(alarmPin
+break;
+
+case 7:  // calculate hatch day 
+lcd.setCursor(0,0);
+lcd.write(0);   //selected
+lcd.print("Calc hatch N/A           "); 
+lcd.setCursor(0,1);
+lcd.print(" Show hatch N/A       ");
+break;
+
+case 8:  //show hatch day 
+lcd.setCursor(0,0);
+
+lcd.print(" Calc hatch N/A        "); 
+lcd.setCursor(0,1);
+lcd.write(0);   //selected
+lcd.print("Show hatch N/A       ");
+break;
+
+case 9:
+currentMenu = 8;
+break;
+
+
+}
+}
+
+//--------------------Setting up led rate function--------------------
+
+void ledRate() {
+ if ( debouncerup.fell() ) {  // Call code if button transitions from HIGH to LOW
+  
+  lcd.clear();
+  counter= counter + 50;
+  lcd.setCursor(0,0);
+  lcd.print("Counter:");
+  lcd.setCursor(9,0);
+  lcd.print(counter);
+  return;
+ }
+
+ if ( debouncerdown.fell() ) {  // Call code if button transitions from HIGH to LOW
+  lcd.clear();
+  counter = counter-50;
+  lcd.setCursor(0,0);
+  lcd.print("Counter:");
+  lcd.setCursor(9,0);
+  lcd.print(counter);
+  return;
+ }
+ 
+}
+
+//-------------------Blink led function-------------------
+
+
+void blinkLed() {
+ if(currentMillis - previousMillis >= 200) {
+  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+  previousMillis = currentMillis;
+ }
+}
+
+
+//--------------------Update Menu function--------------------
+
+void calculateMenu() {  
+ if(mainMenu == true) {
+ if(debouncerup.fell()){
+  if(currentMenu < menuSize) {
+  currentMenu = currentMenu + 1;
+   }
+ }
+  if(debouncerdown.fell()) {
+    if(currentMenu > 0) {
+      currentMenu = currentMenu - 1;
+    }
+  }    
+}
+}
+
+//--------------------Action functions--------------------
+
+void action1()    //show temp and humidity 
+{        
+ 
+  // updateTemp();
+  
+}
+
+
+
+void action2()
+ {              //start the motor and do the motion as demo. 
+
+ //  motorDemo();   
+ }
+
+  
+ 
+
+
+
+void action3()     //turn on lcd backlight
+{
+  
+  lcd.noBacklight(); ;
+
+}
+
+
+
+
+void action4()    //turn off lcd backlight 
+{  
+
+  lcd.backlight();
+}
+
+
+void action5()      //show time for 10 seconds 
+{
+lcd.clear();
+bool inaction5 = true;
+while(inaction5) {
+for ( int i; i< 10; i++) 
+{ 
+    updateTime();
+    printTime();
+    delay(1000);
+
+}
+inaction5 = false;
+}
+}
+
+void action6()    //toggle alarm 
+{ 
+  digitalWrite(buzzer, !digitalRead(buzzer));
+  if(digitalRead(buzzer) == HIGH) {
+    lcd.clear();
+    lcd.setCursor(3, 0);
+    lcd.print("Buzzer Is Now       "); 
+    lcd.setCursor(7,1);
+    lcd.print("Off         ");
+    delay(3000);
+  }
+  if(digitalRead(buzzer) == LOW) {
+    lcd.clear();
+    lcd.setCursor(3, 0);
+    lcd.print("Buzzer Is Now       "); 
+    lcd.setCursor(7,1);
+    lcd.print("On         ");
+    delay(3000);
+  }
+  
+}
+
+void action7()      //calculate hatch date
+{ 
+  
+}
+
+void action8()     //show hatch date 
+
+{
+   //read from eeprom
+}
+
+void action9 ()     //toggle light 
+{
+  digitalWrite(light, !digitalRead(light));
+}
+
+ 
+//-----------------------------------------
+
+
+void menuSelection() {                        //based on the current menu we are on it will carry out respective action
+if(debouncerselect.fell())
+switch(currentMenu) {
+  case 1:
+  action1();
+  break;
+
+  case 2:   
+  action2();
+  
+  break;
+
+  case 3:
+  action3();   //turn off backlight 
+  break;
+
+  case 4:
+  action4();   //turn on back light 
+  break;
+
+  case 5:
+  action5();    //show time
+  break;
+
+  case 6:       //calc hatch date
+  action6();
+  break;
+
+  case 7:      //show hatch date 
+  action7();
+  break;
+
+  case 8:
+  action8();
+  break;
+
+  case 9:
+  action9();    //toggle light 
+  break;
+
+ 
+}
+}
+
+//----------------------------
+
+void calcSubMenu() 
+{  
+ if(mainMenu == false) {
+ if(debouncerup.fell()){
+  if(currentMenu < 8 ) {  //subMenuSize
+  subMenu = subMenu + 1;
+   }
+ }
+  if(debouncerdown.fell()) {
+    if(subMenu > 0) {
+      subMenu = subMenu - 1;
+    }
+  }    
+}
+}
+
+
+void goHome() 
+{
+  //nest this function in every action 
+  if(debouncerselect.fell()) {
+    //if the button is pressed for more than 2s then jump back to home/main meu 
+  }
+}
+
+//-----------------------------------
+
+void updateTime()
+{
+  clock.getTime();
+  hour_now = (clock.hour);
+  minute_now =(clock.minute);
+  second_now =(clock.second);
+  month_now =(clock.month);
+  year_now =(clock.year+2000);
+  day_now =(clock.dayOfMonth);
+
+}
+
+void printTime() 
+{
+  
+  lcd.setCursor(0,0);
+  lcd.print("Time: ");
+  lcd.print(hour_now);
+  lcd.print(":");
+  lcd.print(minute_now);
+  lcd.print(":");
+  lcd.print(second_now);
+  lcd.print("        ");
+  lcd.setCursor(0,1);
+  lcd.print("Date: ");
+  lcd.print(day_now);
+  lcd.print("/");
+  lcd.print(month_now);
+  lcd.print("/");
+  lcd.print(year_now);
+  lcd.print("         ");
+ 
+}
+
+void print_sensor_data() 
+{
+  if(currentMillis - previousMillis >= temp_update_interval) {
+   if (isnan(dht.humidity) || isnan(dht.temperature_C)) {
+
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Sensor failure!");
+  digitalWrite(buzzer, HIGH);
+  return;
+  } 
+  
+   dht.readHumidity();
+   dht.readTemperature();
+   lcd.clear();
+   lcd.setCursor(0,0);
+   lcd.print("T: ");
+   lcd.print(dht.temperature_C);
+   lcd.write(1);  //degree
+   lcd.write(2);  //celcius
+   if(digitalRead(buzzer) == HIGH)   //buzzer status
+   {
+   lcd.setCursor(13,0);
+   lcd.write(3);
+   } else if (digitalRead(buzzer) == LOW) 
+   {
+    lcd.setCursor(13,0);
+    lcd.write(4);
+   }
+   if(digitalRead(light) == HIGH) //if the light is off
+   {
+    lcd.setCursor(14, 0);
+    lcd.write(4); 
+    
+   } else if (digitalRead(light) == LOW) //light on 
+   {
+    lcd.setCursor(14,0);
+    lcd.write(3);
+   }
+    if(digitalRead(dehumidifier_fan) == HIGH) //if the light is on
+   {
+    lcd.setCursor(15, 0);
+    lcd.write(3); 
+    
+   } else if (digitalRead(dehumidifier_fan) == LOW) //light off 
+   {
+    lcd.setCursor(15,0);
+    lcd.write(4);
+   }
+
+
+   
+//   lcd.setCursor(15,0);    temp and humid graphic
+//   lcd.write(1);
+ 
+   lcd.setCursor(0,1);
+   lcd.print("H: "); 
+   lcd.print(dht.humidity);
+   lcd.print(" %");
+   lcd.print("        ");
+   previousMillis = currentMillis;
+}
+}
+
+//----------------------------------------
+
+void regulate_humidity() 
+{
+  if(dht.humidity >= max_humidity) 
+  {
+     digitalWrite(dehumidifier_fan, HIGH);
+     //blink_led();
+  }
+  else 
+  {
+    digitalWrite(dehumidifier_fan, LOW);
+  }
+}
+
+
+void regulate_temperature() 
+{
+  if(dht.temperature_C >= max_temp) 
+  {
+    digitalWrite(heater, HIGH);    //inverse for relay high = low
+  }
+  if(dht.temperature_C <= min_temp) 
+  {
+    digitalWrite(heater, LOW);     //turn on. 
+  }
+}

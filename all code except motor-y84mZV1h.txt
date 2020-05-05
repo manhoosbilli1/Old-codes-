@@ -1,0 +1,169 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <TimeLib.h>
+#include <TimeAlarms.h>
+#include <Bounce2.h>
+#include "DHT.h"
+#define DHTPIN 7    // what pin we're connected to
+#define DHTTYPE DHT22   // DHT 22  (AM2302)
+#define btn_up 12
+#define btn_down  11
+#define btn_select 10
+bool Up;
+bool Down;
+bool Select;
+bool updAlarm;
+float h;
+float t;
+DHT dht(DHTPIN, DHTTYPE);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+AlarmId id;
+Bounce debouncer1 = Bounce();
+Bounce debouncer2 = Bounce();
+Bounce debouncer3 = Bounce();
+
+ 
+void setup() {
+  // put your setup code here, to run once:
+  pinMode(btn_up,INPUT_PULLUP);
+  debouncer1.attach(btn_up);
+  debouncer1.interval(25); // interval in ms
+  pinMode(btn_down,INPUT_PULLUP);
+  debouncer2.attach(btn_down);
+  debouncer2.interval(25);
+  pinMode(btn_select,INPUT_PULLUP);
+  debouncer3.attach(btn_select);
+  debouncer3.interval(25);
+  Alarm.timerRepeat(2, upd_alarm); //every 2 seconds
+  dht.begin();  
+ 
+  //ask if the user wants to start incubating procedure if 
+  //not already in the process
+  lcd.begin();
+  lcd.backlight();
+  Alarm.delay(500);
+}
+enum pages {
+DEFAULT_SENSOR,
+MANUAL_MTR_TURN, 
+MOTOR_DEMO, 
+TOGGLE_BUZZER, 
+SHOW_TIME, 
+CALCULATE_HATCHDATE   
+};
+int currentPage = DEFAULT_SENSOR;
+void loop() {
+  debouncer1.update();
+  debouncer2.update();
+  debouncer3.update();
+  int Up = debouncer1.read();
+  int Down = debouncer2.read();
+  int Select = debouncer3.read();
+  menu();
+  
+
+}
+void upd_alarm() {       //function used in alarm to turn on flag for updating alarm
+  updAlarm = true;
+}
+
+void updateAlarm(){
+  if(updAlarm == true)
+  { 
+    //udate sensor
+    h = dht.readHumidity();
+    t = dht.readTemperature();
+    if (isnan(h) || isnan(t)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+    }
+    updAlarm = false;
+  }
+}
+void updatePage() {
+  if(debouncer1.fell()) {
+    if(currentPage == 0) {
+      currentPage++;
+    }
+    if(currentPage == 5){
+      currentPage = 0;
+    }
+  }
+  if(debouncer3.fell()) {
+    if(currentPage == 0){
+      currentPage = 5; 
+    }
+    if(currentPage == 5){
+      currentPage--;
+    }
+  }
+}
+
+void menu() {
+  switch(currentPage) {
+  case DEFAULT_SENSOR:
+  //updateAlarms();  this will contain all the timers 
+  updateAlarm();
+  lcd.setCursor(0,0);
+  lcd.print("  T: ");
+  //show temperature from sensor
+  lcd.print(t);
+  lcd.setCursor(0,1);
+  lcd.print("  H: ");
+  lcd.print(h);
+  lcd.print("                ");
+  updatePage();
+  //show humidity from sensor
+  break;
+
+  case CALCULATE_HATCHDATE: 
+  lcd.setCursor(0,0);
+  lcd.print("Press Select To         ");
+  lcd.setCursor(0,1);
+  lcd.print("Find HatchDay         ");
+  updatePage();
+  break;
+
+  case MANUAL_MTR_TURN:
+  lcd.setCursor(0,0);
+  lcd.print("Press Select          ");
+  lcd.setCursor(0,1);
+  lcd.print("To Turn Motor     ");
+  updatePage();
+  break;
+
+  case MOTOR_DEMO:
+  lcd.setCursor(0,0);
+  lcd.print("Press Select       ");
+  lcd.setCursor(0,1);
+  lcd.print("To Run Demo               ");
+  updatePage(); 
+  break;
+
+  case TOGGLE_BUZZER:
+  lcd.setCursor(0,0);
+  lcd.print("Press Select          ");
+  lcd.setCursor(0,1);
+  lcd.print("To toggle         ");
+  updatePage();
+  break;
+
+
+  case SHOW_TIME:
+  lcd.setCursor(0,0);
+  lcd.print("Press Select         ");
+  lcd.setCursor(0,1);
+  lcd.print("To Show Time         ");
+  updatePage();
+  break;
+ 
+}
+}
+
+
+
+void updateBuzzer(){
+}
+
+void countDownForHatch(){
+}

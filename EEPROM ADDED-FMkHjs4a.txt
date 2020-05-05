@@ -1,0 +1,282 @@
+#include <EEPROM.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <TimeLib.h>
+#include <TimeAlarms.h>
+#include "RTClib.h"
+#include <JC_Button.h>
+#include "DHT.h"
+#define DHTPIN 7    // what pin we're connected to
+#define DHTTYPE DHT22   // DHT 22  (AM2302)
+#define btn_up 11
+#define btn_down  12
+#define btn_select 10
+bool showHatchDay = 0;
+bool needToShowTime = 0;
+bool updAlarm;
+float h;
+float t;
+int currentPage = 0;
+
+unsigned long previousMillis = 0;
+unsigned int tDuration = 5000;
+unsigned int hatchYear;
+unsigned int hatchMonth;
+unsigned int hatchDay;
+unsigned int hatchHour;
+
+RTC_DS3231 rtc;
+DHT dht(DHTPIN, DHTTYPE);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+AlarmId id;
+Button Up(btn_up);
+Button Select(btn_select);
+Button Down(btn_down);
+
+
+
+void setup() {
+  // put your setup code here, to run once:
+  DateTime now = rtc.now();
+  Up.begin();
+  Down.begin();
+  Select.begin();
+  Serial.begin(9600);
+  lcd.begin();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("   Incubator   ");
+  lcd.setCursor(0, 1);
+  lcd.print("   Starting   ");
+  EEPROM.get(0, hatchYear);
+  EEPROM.get(4, hatchMonth);
+  EEPROM.get(8, hatchDay);
+  Alarm.delay(2000);
+}
+
+
+void loop() {
+
+  Up.read();
+  Down.read();
+  Select.read();
+  DateTime now = rtc.now();
+  //RTC code
+
+  if (! rtc.begin()) {
+    lcd.clear();
+    lcd.print("Couldn't find RTC");
+    while (1);
+  }
+
+  if (rtc.lostPower()) {
+    lcd.clear();
+    lcd.print("RTC lost power");
+    // following line sets the RTC to the date & time this sketch was compiled
+    //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // This line sets the RTC with an explicit date & time, for example to set
+    // January 21, 2014 at 3am you would call:
+    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+  }
+
+  //RTC code finished
+  menu();
+
+}
+
+
+
+
+
+
+
+
+void menu() {
+  switch (currentPage) {
+    default:
+      Serial.println("in default");
+      break;
+
+    case 0:
+      //show status day remaining for hatch
+      //show time remaining for next turn
+      lcd.setCursor(0, 0);
+      lcd.print("T: ");
+      lcd.print("38 C");
+      lcd.setCursor(0, 1);
+      lcd.print("H: ");
+      lcd.print("56%");
+      lcd.print(hatchYear, DEC);
+      lcd.print("/");
+      lcd.print(hatchMonth, DEC);
+      lcd.print("/");
+      lcd.print(hatchDay, DEC);
+
+      //show humidity from sensor
+      if (Up.wasPressed()) {
+        currentPage += 1;
+      }
+      if (Down.wasPressed()) {
+        currentPage = 5;
+      }
+      break;
+
+    case 1:
+      lcd.setCursor(0, 0);
+      lcd.print("Press Select To         ");
+      lcd.setCursor(0, 1);
+      lcd.print("Find HatchDay         ");
+      if (Up.wasPressed()) {
+        currentPage += 1;
+      }
+      if (Down.wasPressed()) {
+        currentPage -= 1;
+      }
+
+      if (Select.wasPressed()) {
+        DateTime now = rtc.now();
+        DateTime future (now.unixtime() + 21 * 86400L + 30);
+        hatchYear = future.year();
+        hatchMonth = future.month();
+        hatchDay = future.day();
+        hatchHour = future.hour();
+        EEPROM.put(0, hatchYear);
+        EEPROM.put(4, hatchMonth);
+        EEPROM.put(8, hatchDay);
+        showHatchDay = true;
+        if (showHatchDay) {
+          previousMillis = millis();
+          while ((millis() - previousMillis) <= 3000) {
+            lcd.setCursor(0, 0);
+            lcd.print("   Hatch Day   ");
+            lcd.setCursor(0, 1);
+            lcd.print("   ");
+            lcd.print(future.year(), DEC);
+            lcd.print("/");
+            lcd.print(future.month(), DEC);
+            lcd.print("/");
+            lcd.print(future.day(), DEC);
+            lcd.print("       ");
+            delay(50);
+          }
+          showHatchDay = false;
+        }
+      }
+
+      break;
+
+    case 2:
+      lcd.setCursor(0, 0);
+      lcd.print("Press Select          ");
+      lcd.setCursor(0, 1);
+      lcd.print("To Turn Motor     ");
+      if (Up.wasPressed()) {
+        currentPage += 1;
+      }
+      if (Down.wasPressed()) {
+        currentPage -= 1;
+      }
+      break;
+
+    case 3:
+      lcd.setCursor(0, 0);
+      lcd.print("Press Select       ");
+      lcd.setCursor(0, 1);
+      lcd.print("To Run Demo               ");
+      if (Up.wasPressed()) {
+        currentPage += 1;
+      }
+      if (Down.wasPressed()) {
+        currentPage -= 1;
+      }
+      break;
+
+    case 4:
+      lcd.setCursor(0, 0);
+      lcd.print("Press Select          ");
+      lcd.setCursor(0, 1);
+      lcd.print("To Check Fan        ");
+      if (Up.wasPressed()) {
+        currentPage += 1;
+      }
+      if (Down.wasPressed()) {
+        currentPage -= 1;
+      }
+      break;
+
+
+    case 5:
+
+      lcd.setCursor(0, 0);
+      lcd.print("Press Select         ");
+      lcd.setCursor(0, 1);
+      lcd.print("To Show Time         ");
+      if (Up.wasPressed()) {
+        currentPage = 0;
+      }
+      if (Down.wasPressed()) {
+        currentPage -= 1;
+      }
+      if (Select.wasPressed()) {
+        needToShowTime = true;
+        if ( needToShowTime ) {   //triggers a function which will print to lcd
+          previousMillis = millis();   //and wait for said time
+          while ((millis() - previousMillis) <= tDuration) //show for 5 seconds
+          {
+            showTime();
+            delay(50);       //to slow down arduino
+          }
+          needToShowTime = false;  //after we have shown the time for time we can go to normal
+        }
+      }
+      break;
+
+  }
+}
+
+
+
+void updateBuzzer() {
+}
+
+void countDownForHatch() {
+}
+
+
+void showTime()
+{
+
+  DateTime now = rtc.now();
+  lcd.setCursor(0, 0);
+  lcd.print("Date:  ");
+  lcd.setCursor(7, 0);
+  lcd.print(now.year(), DEC);
+  lcd.print('/');
+  lcd.print(now.month(), DEC);
+  lcd.print('/');
+  lcd.print(now.day(), DEC);
+  lcd.print("            ");
+  lcd.setCursor(0, 1);
+  lcd.print("Time:  ");
+  lcd.setCursor(7, 1);
+  lcd.print("");
+  lcd.print(now.hour(), DEC);
+  lcd.print(':');
+  lcd.print(now.minute(), DEC);
+  lcd.print(':');
+  lcd.print(now.second(), DEC);
+  lcd.print("          ");
+
+}
+
+void printTime() {
+  if ( needToShowTime ) {    //triggers a function which will print to lcd
+    previousMillis = millis();   //and wait for said time
+    while ((millis() - previousMillis) <= tDuration) //show for 5 seconds
+    {
+      showTime();
+      delay(50);       //to slow down arduino
+    }
+    needToShowTime = false;  //after we have shown the time for time we can go to normal
+  }
+}

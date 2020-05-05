@@ -1,0 +1,65 @@
+unsigned long currentMillis;
+unsigned long previousMillis;
+unsigned long previous2Millis;
+const long onInterval = 10000;
+const long offInterval = 20000;
+const byte in1 = 10;
+const byte in2 = 11;
+const byte sw1 = 7;  //this is left switch
+const byte sw2 = 5;  //this is right switch
+boolean sw1Status;
+boolean sw2Status;
+int stateMachine;
+ 
+void setup() {
+  // put your setup code here, to run once:
+  pinMode(in1, OUTPUT);
+  pinMode(in2, OUTPUT);
+  pinMode(sw1, INPUT_PULLUP);
+  pinMode(sw2, INPUT_PULLUP);
+  Serial.begin(9600);
+ 
+ 
+}
+ 
+void loop() {
+
+  currentMillis = millis();
+  sw1Status = digitalRead(sw1);
+  sw2Status = digitalRead(sw2);
+  switch (stateMachine) {
+    case 0: 
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, LOW);
+    if(sw1Status == HIGH && sw2Status == LOW) 
+    {
+      Serial.println("Just chose case 2 from case 0");
+      delay(5000);              //waiting before going to the next command
+      stateMachine = 2; 
+    } else if (sw1Status == LOW && sw2Status == HIGH) {  
+      delay(5000);
+      stateMachine = 1;  
+    }
+    break;
+ 
+    case 1:
+    if(sw2Status == HIGH) {   
+        digitalWrite(in1, HIGH);
+        digitalWrite(in2, LOW);
+    } else if (sw2Status == LOW) {   
+      stateMachine = 0;  // go to reset
+    }
+    break;
+ 
+    case 2:  
+    if(sw1Status == HIGH) { 
+      digitalWrite(in1, LOW);   
+      digitalWrite(in2, HIGH);
+    } else if (sw1Status == LOW) {     
+      stateMachine = 0;
+    }
+    break;
+ 
+   
+  }
+  }

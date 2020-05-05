@@ -1,0 +1,183 @@
+/*
+You are free to modify the code as much as you want and share it with other people if you want. Try to add any improvements and bugs to the original git hub repository so that i can take a look as well, of course this is not a requirement. 
+do not delete this comment section, as this will help the next reader link to the original post and original content. This is necessary to avoid any confusion later on. Happy tinkering!  
+Youtube Channel: https://www.youtube.com/channel/UCtvpQinm9lOqgLaEp4WIo-w?
+Github Repository: https://github.com/manhoosbilli1/Arduino-Incubator
+Arduino-forum thread: https://forum.arduino.cc/index.php?topic=631158.0
+// Written by manhoosbilli1 aka kaka, public domain
+*/
+
+
+#include <Bounce2.h>
+#include <Wire.h>
+#include "RTClib.h"
+#include <TimeLib.h>
+#include <TimeAlarms.h>
+ 
+AlarmId id;
+RTC_DS3231 rtc;
+ 
+#define motorRightPin 4
+#define motorLeftPin 3
+#define limitSwitchLeftPin 9
+#define limitSwitchRightPin  8
+int hour_now;
+int minute_now;
+int second_now;
+int month_now;
+int year_now;
+int day_now;
+
+
+bool limitSwitchRightState;
+bool limitSwitchLeftState;
+ 
+ 
+ 
+bool startMotor = false;
+Bounce limitSwitchLeft = Bounce();
+Bounce limitSwitchRight = Bounce();
+
+ 
+ 
+void setup() {
+  // syncing the time of arduino with time of RTC
+ 
+  DateTime now = rtc.now();
+  hour_now = now.hour();
+  minute_now = now.minute();
+  second_now = now.second();
+  month_now = now.month();
+  year_now = now.year();
+  day_now = now.day();
+ 
+  setTime(hour_now,minute_now,second_now,month_now,day_now,year_now);  
+ 
+  pinMode(motorRightPin, OUTPUT);
+  pinMode(motorLeftPin, OUTPUT);
+  digitalWrite(motorRightPin, LOW);
+  digitalWrite(motorLeftPin, LOW);
+ 
+  limitSwitchLeft.attach(limitSwitchLeftPin, INPUT_PULLUP);
+  limitSwitchLeft.interval(50);
+ 
+  limitSwitchRight.attach(limitSwitchRightPin, INPUT_PULLUP);
+  limitSwitchRight.interval(50);
+ 
+//using alarm library which lets me set alarm and execute a specific function at specifc time
+ 
+  Alarm.timerRepeat(10, turnEggFlag);      //4 HOURS PER TURN 
+
+ 
+ 
+  Serial.begin(57600);
+  Serial.println("Incubator starting. motor is now at rest");
+ 
+//RTC FUCNTIONS BELOW. necessary
+ 
+  if(! rtc.begin())
+  {
+    Serial.println("Couldn't find RTC");
+    while(1);
+  }
+ 
+  if(rtc.lostPower())
+  {
+    Serial.println("RTC lost power");
+    // following line sets the RTC to the date & time this sketch was compiled
+    //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // This line sets the RTC with an explicit date & time, for example to set
+    // January 21, 2014 at 3am you would call:
+    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+  }
+ 
+ 
+//RTC FUNCTIONS ABOVE
+ 
+  //if motor isn't on one of the switches, move the tray to one of the switches
+  while(digitalRead(limitSwitchLeftPin) == HIGH && digitalRead(limitSwitchRightPin) == HIGH )
+  {
+    digitalWrite(motorRightPin, LOW);
+    digitalWrite(motorLeftPin, HIGH);
+    Serial.println("Mtr calibrating");
+  }
+ 
+  digitalWrite(motorRightPin, LOW);
+  digitalWrite(motorLeftPin, LOW);
+  Serial.println("Calibration OK");
+ 
+  delay(2000);
+}
+ 
+enum states { STATE_IDLE, STATE_MOVING_RIGHT, STATE_MOVING_LEFT };
+ 
+int currentState = STATE_IDLE;          //giving names to cases in switch case
+ 
+ 
+void loop() {
+  // initializing time and updating
+  DateTime now = rtc.now();
+  hour_now = now.hour();
+  minute_now = now.minute();
+  second_now = now.second();          
+  month_now = now.month();
+  year_now = now.year();
+  day_now = now.day();
+  limitSwitchLeft.update();
+  limitSwitchRight.update();      //reading the debounce state of switches
+  limitSwitchLeftState = limitSwitchLeft.read();   //switch are input pullup. high state is zero
+  limitSwitchRightState = limitSwitchRight.read();
+  turn();       //turn the eggs
+  Alarm.delay(50);        //works as a normal delay to slow down arduino
+}
+ 
+void turn(){
+  if (startMotor == true){  
+     switch (currentState) {
+        case STATE_IDLE:    
+            if (limitSwitchLeftState == HIGH && limitSwitchRightState == LOW){
+              Serial.println("Moving right now");
+              digitalWrite(motorRightPin, HIGH);
+              digitalWrite(motorLeftPin, LOW);
+              currentState = STATE_MOVING_RIGHT;
+            }
+            if (limitSwitchLeftState == LOW && limitSwitchRightState == HIGH){
+              Serial.println("Moving left now");
+              digitalWrite(motorRightPin, LOW);
+              digitalWrite(motorLeftPin, HIGH);
+              currentState = STATE_MOVING_LEFT;
+            }
+            
+          break;
+     
+        case STATE_MOVING_RIGHT:
+          // moving right so only check right limit switch
+          if (limitSwitchRightState == HIGH && limitSwitchLeftState == LOW)  {
+            Serial.println("Motor reached right. motor stopping");
+            digitalWrite(motorRightPin, LOW);
+            digitalWrite(motorLeftPin, LOW);
+            startMotor = false;
+            currentState = STATE_IDLE;
+            break;
+           }
+          break;
+     
+        case STATE_MOVING_LEFT:
+          // moving left so only check left limit switch
+     
+          if (limitSwitchLeftState == HIGH && limitSwitchRightState == LOW){
+            Serial.println("Motor has reached left. Motor stopping");
+            digitalWrite(motorRightPin, LOW);
+            digitalWrite(motorLeftPin, LOW);
+            startMotor = false;
+            currentState = STATE_IDLE;
+            break;
+          } 
+        }
+   }
+}
+ 
+void turnEggFlag() {
+  Serial.println("Turned on the flag");
+  startMotor = true;
+}

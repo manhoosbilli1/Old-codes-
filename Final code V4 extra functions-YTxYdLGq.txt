@@ -1,0 +1,686 @@
+#include <Arduino.h>
+#include <DHT.h>;
+#include <EEPROM.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <TimeLib.h>
+#include <TimeAlarms.h>
+#include "RTClib.h"
+#include <JC_Button.h>
+#define DHTPIN 2      // what pin we're connected to
+#define DHTTYPE DHT22 // DHT 22  (AM2302)
+#define btn_up 12
+#define btn_down 11
+#define btn_select 10
+#define lSw1 8
+#define lSw2 9
+#define m1 5
+#define m2 6
+#define relay 3
+#define buzzer A1
+#define deHumFan A3
+bool runDemo = false;
+bool showHatchDay = 0;
+bool needToShowTime = 0;
+bool updAlarm;
+bool turnOnce = false;
+bool humidityHigh = false;
+bool tempHigh = false;
+float setPointT = 37.5;
+float setPointH = 60;
+//Variables
+int chk;
+float h;
+float t;
+int currentPage = 0;
+bool startMotor = false;
+unsigned long previousMillis = 0;
+unsigned long previousMillis1 = 0;
+unsigned long currentMillis = 0;
+unsigned int tDuration = 5000;
+unsigned int hatchYear;
+unsigned int hatchMonth;
+unsigned int hatchDay;
+unsigned int hatchHour;
+unsigned int hour_now;
+unsigned int minute_now;
+unsigned int second_now;
+unsigned int month_now;
+unsigned int year_now;
+unsigned int day_now;
+RTC_DS3231 rtc;
+DHT dht(DHTPIN, DHTTYPE);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+AlarmId id;
+Button Up(btn_up);
+Button Select(btn_select);
+Button Down(btn_down);
+Button ls1(lSw1);
+Button ls2(lSw2);
+byte motorOn[8] = {
+  0x00,
+  0x00,
+  0x11,
+  0x1B,
+  0x15,
+  0x11,
+  0x11,
+  0x00
+};
+byte centigrade[8] = {
+  0x10,
+  0x06,
+  0x09,
+  0x08,
+  0x08,
+  0x09,
+  0x06,
+  0x00
+};
+byte highH[8] = {
+  0x00,
+  0x04,
+  0x04,
+  0x04,
+  0x0A,
+  0x11,
+  0x0A,
+  0x04
+};
+
+byte percentage [8] = {
+  0x00,
+  0x00,
+  0x01,
+  0x0A,
+  0x04,
+  0x0A,
+  0x10,
+  0x00
+};
+
+byte highT[8] = {
+  0x0E,
+  0x0A,
+  0x0A,
+  0x0A,
+  0x0A,
+  0x1B,
+  0x11,
+  0x1F
+};
+
+void setup()
+{
+  // put your setup code here, to run once:
+  Alarm.timerRepeat(60, turnEggFlag); //every 10 seconds
+  Serial.begin(9600);
+  //buttons
+  dht.begin();
+  Up.begin();
+  Down.begin();
+  Select.begin();
+  ls1.begin();
+  ls2.begin();
+  lcd.begin();
+  //lcd
+  lcd.backlight();
+  lcd.createChar(0, motorOn);
+  lcd.createChar(1, centigrade);
+  lcd.createChar(2, highH);
+  lcd.createChar(3, percentage);
+  lcd.createChar(4, highT);
+  lcd.home();
+  //rtc
+  if (!rtc.begin())
+  {
+    lcd.setCursor(0, 0);
+    lcd.print("Couldn't find...    ");
+    lcd.setCursor(0, 1);
+    lcd.print("RTC!  Restart!    ");
+    while (1)
+      ;
+  }
+  if (rtc.lostPower())
+  {
+    lcd.setCursor(0, 0);
+    lcd.print("RTC lost power   ");
+    lcd.setCursor(0, 1);
+    lcd.println("Upload Code Again  ");
+    // following line sets the RTC to the date & time this sketch was compiled
+    //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // This line sets the RTC with an explicit date & time, for example to set
+    // January 21, 2014 at 3am you would call:
+    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+  }
+  EEPROM.get(10, hatchYear);
+  EEPROM.get(14, hatchMonth);
+  EEPROM.get(18, hatchDay);
+  //pinmodes and initialisation
+  pinMode(m1, OUTPUT);
+  pinMode(m2, OUTPUT);
+  pinMode(relay, OUTPUT);
+  pinMode(buzzer, OUTPUT);
+  pinMode(deHumFan, OUTPUT);
+  lcd.setCursor(0, 0);
+  lcd.print("Mortor is     ");
+  lcd.setCursor(0, 1);
+  lcd.print("Calibrating...");
+  while (ls1.read() == LOW && ls2.read() == LOW)
+  {
+    digitalWrite(m1, HIGH);
+    digitalWrite(m2, LOW);
+  }
+  lcd.setCursor(0, 0);
+  lcd.print("MOtor Is Now      ");
+  lcd.print("Calibrated      ");
+  digitalWrite(m1, LOW);
+  digitalWrite(m2, LOW);
+  Alarm.delay(2000);
+  lcd.setCursor(0, 0);
+  lcd.print(":)   Incubator  :) ");
+  lcd.setCursor(0, 1);
+  lcd.print(":)   Starting   :)         ");
+  Alarm.delay(1000);
+}
+
+enum states
+{
+  STATE_IDLE,
+  STATE_MOVING_RIGHT,
+  STATE_MOVING_LEFT
+};
+int currentState = STATE_IDLE;
+
+void loop()
+{
+  DateTime now = rtc.now();
+  currentMillis = millis();
+  Up.read();
+  Down.read();
+  Select.read();
+  ls1.read();
+  ls2.read();
+  updateSensor(); //will update sensor every 2 minutes.
+  menu();         //will take care of lcd interface
+  turn_once();    //will work only when called
+  turn();         //will turn motor few times in a day
+  Maintain();     //will maintain temp and humidity
+
+}
+
+void turnEggFlag()
+{
+
+  startMotor = true;
+  turnCounter += 1;
+  turnsLeft = 3 - turnCounter;
+  if (turnCounter == 3) {   //if maximum number of turns reached then reset the counter
+    turnCounter = 1;
+  }
+}
+
+void turn_once()
+{
+  if (turnOnce)
+  {
+    switch (currentState)
+    {
+      case STATE_IDLE:
+        if (ls1.read() == false && ls2.read() == true)
+        {
+          digitalWrite(m1, HIGH);
+          digitalWrite(m2, LOW);
+          currentState = STATE_MOVING_RIGHT;
+        }
+        if (ls1.read() == true && ls2.read() == false)
+        {
+          digitalWrite(m1, LOW);
+          digitalWrite(m2, HIGH);
+          currentState = STATE_MOVING_LEFT;
+        }
+        break;
+
+      case STATE_MOVING_RIGHT:
+        if (ls1.read() == true && ls2.read() == false)
+        {
+          digitalWrite(m1, LOW);
+          digitalWrite(m2, LOW);
+          turnOnce = false;
+          currentState = STATE_IDLE;
+          break;
+        }
+        break;
+
+      case STATE_MOVING_LEFT:
+        if (ls1.read() == false && ls2.read() == true)
+        {
+          digitalWrite(m1, LOW);
+          digitalWrite(m2, LOW);
+          turnOnce = false;
+          currentState = STATE_IDLE;
+          break;
+        }
+        break;
+    }
+  }
+}
+
+void turn()
+{
+  if (startMotor)
+  {
+    switch (currentState)
+    {
+      case STATE_IDLE:
+        if (ls1.read() == false && ls2.read() == true)
+        {
+          digitalWrite(m1, HIGH);
+          digitalWrite(m2, LOW);
+          currentState = STATE_MOVING_RIGHT;
+        }
+        if (ls1.read() == true && ls2.read() == false)
+        {
+          digitalWrite(m1, LOW);
+          digitalWrite(m2, HIGH);
+          currentState = STATE_MOVING_LEFT;
+        }
+        break;
+
+      case STATE_MOVING_RIGHT:
+        if (ls1.read() == true && ls2.read() == false)
+        {
+          digitalWrite(m1, LOW);
+          digitalWrite(m2, LOW);
+          startMotor = false;
+          currentState = STATE_IDLE;
+          break;
+        }
+        break;
+
+      case STATE_MOVING_LEFT:
+        if (ls1.read() == false && ls2.read() == true)
+        {
+          digitalWrite(m1, LOW);
+          digitalWrite(m2, LOW);
+          startMotor = false;
+          currentState = STATE_IDLE;
+          break;
+        }
+        break;
+    }
+  }
+}
+
+void menu()
+{
+  switch (currentPage)
+  {
+    default:
+      lcd.setCursor(
+        lcd.print("in default");
+        break;
+
+      case 0:
+          //T print
+          lcd.setCursor(0, 0);
+          lcd.print("T:");
+          lcd.print(t);
+          lcd.write(1);
+          lcd.print("      "); //fill spaces till 14
+          //motor print
+          if (startMotor)
+      {
+        lcd.setCursor(12, 0);
+          lcd.write(0); /// flash motor on symbol
+        }
+        else
+        {
+          lcd.setCursor(12, 0);
+          lcd.print(".");
+        }
+      //turn counter print
+      lcd.setCursor(13, 0);
+      lcd.print(turnsLeft);
+      lcd.print("/");
+      lcd.print(3);
+      //humidity print
+      lcd.setCursor(0, 1);
+      lcd.print("H:");
+      lcd.print(h);
+      lcd.write(3);//percentage character
+      lcd.print("      ");
+      if (highH)
+    {
+      lcd.setCursor(14, 1);
+      lcd.write(2);
+      }
+      else
+      {
+        lcd.setCursor(14, 1);
+        lcd.print(".");
+      }
+      updateSensor();
+      //show humidity from sensor
+      if (Up.wasPressed())
+    {
+      currentPage += 1;
+    }
+    if (Down.wasPressed())
+    {
+      currentPage = 6;
+    }
+    break;
+
+  case 1:
+      lcd.setCursor(0, 0);
+      lcd.print("Press Select To       ");
+      lcd.setCursor(0, 1);
+      lcd.print("Find HatchDay         ");
+      if (Up.wasPressed())
+      {
+        currentPage += 1;
+      }
+    if (Down.wasPressed())
+    {
+      currentPage -= 1;
+    }
+
+    if (Select.wasPressed())
+    {
+      calcHatchDay();
+        showHatchDay = true;
+        if (showHatchDay)
+        {
+          previousMillis = millis();
+          while ((millis() - previousMillis) <= 3000)
+          {
+            lcd.setCursor(0, 0);
+            lcd.print("   Hatch Day   ");
+            lcd.setCursor(0, 1);
+            lcd.print("   ");
+            lcd.print(hatchYear);
+            lcd.print("/");
+            lcd.print(hatchMonth);
+            lcd.print("/");
+            lcd.print(hatchDay);
+            lcd.print("       ");
+            Alarm.delay(50);
+          }
+          showHatchDay = false;
+        }
+      }
+
+      break;
+
+    case 2:
+        lcd.setCursor(0, 0);
+        lcd.print("Press Select To         ");
+        lcd.setCursor(0, 1);
+        lcd.print("Turn Motor once     ");
+        if (Up.wasPressed())
+      {
+        currentPage += 1;
+      }
+    if (Down.wasPressed())
+    {
+      currentPage -= 1;
+    }
+
+    if (Select.wasPressed())
+    {
+      turnOnce = true;
+      /*BeepActive = true;
+         previousMillia2 = millis();
+         beepFor(50, 50, 2000);
+      */
+    }
+    break;
+
+  case 3:
+      lcd.setCursor(0, 0);
+      lcd.print("Press Select       ");
+      lcd.setCursor(0, 1);
+      lcd.print("To Run Demo               ");
+      if (Up.wasPressed())
+      {
+        currentPage += 1;
+      }
+    if (Down.wasPressed())
+    {
+      currentPage -= 1;
+    }
+    if (Select.wasPressed())
+    {
+      digitalWrite(buzzer, HIGH);
+        digitalWrite(deHumFan, HIGH);
+        digitalWrite(relay, HIGH);
+        runDemo = true;
+        if (runDemo)
+        {
+          previousMillis = millis();
+          while (millis() - previousMillis <= 3000)
+          {
+            lcd.setCursor(0, 0);
+            lcd.print("Demo Running      ");
+            lcd.setCursor(0, 1);
+            lcd.print("Please Wait...    ");
+            Alarm.delay(50);
+          }
+          runDemo = false;
+        }
+        digitalWrite(deHumFan, LOW);
+        digitalWrite(relay, LOW);
+        digitalWrite(buzzer, LOW);
+      }
+      break;
+
+    case 4:
+        lcd.setCursor(0, 0);
+        lcd.print("Press Select To          ");
+        lcd.setCursor(0, 1);
+        lcd.print("Toggle Fan        ");
+        if (Up.wasPressed())
+      {
+        currentPage += 1;
+      }
+    if (Down.wasPressed())
+    {
+      currentPage -= 1;
+    }
+    if (Select.wasPressed())
+    {
+      digitalWrite(deHumFan, !digitalRead(deHumFan)); //toggle dehumidifier fan
+      }
+      break;
+
+    case 5:
+        lcd.setCursor(0, 0);
+        lcd.print("Press Select         ");
+        lcd.setCursor(0, 1);
+        lcd.print("To Show Time         ");
+        if (Up.wasPressed())
+      {
+        currentPage += 1;
+      }
+    if (Down.wasPressed())
+    {
+      currentPage -= 1;
+    }
+    if (Select.wasPressed())
+    {
+      needToShowTime = true;
+      if (needToShowTime)
+        { //triggers a function which will print to lcd
+          previousMillis = millis();                       //and wait for said time
+          while ((millis() - previousMillis) <= tDuration) //show for 5 seconds
+          {
+            showTime();
+            Alarm.delay(50); //to slow down arduino
+          }
+          needToShowTime = false; //after we have shown the time for time we can go to normal
+        }
+      }
+      break;
+
+    case 6:
+        lcd.setCursor(0, 0);
+        lcd.print("Press Select To         ");
+        lcd.setCursor(0, 1);
+        lcd.print("Toggle Light     ");
+        if (Up.wasPressed())
+      {
+        currentPage = 0;
+      }
+    if (Down.wasPressed())
+    {
+      currentPage -= 1;
+    }
+
+    if (Select.wasPressed())
+    {
+      digitalWrite(relay, !digitalRead(relay));
+      }
+      break;
+  }
+}
+
+void showTime()
+{
+
+  DateTime now = rtc.now();
+  lcd.setCursor(0, 0);
+  lcd.print("Date:  ");
+  lcd.setCursor(7, 0);
+  lcd.print(now.year(), DEC);
+  lcd.print('/');
+  lcd.print(now.month(), DEC);
+  lcd.print('/');
+  lcd.print(now.day(), DEC);
+  lcd.print("            ");
+  lcd.setCursor(0, 1);
+  lcd.print("Time:  ");
+  lcd.setCursor(7, 1);
+  lcd.print("");
+  lcd.print(now.hour(), DEC);
+  lcd.print(':');
+  lcd.print(now.minute(), DEC);
+  lcd.print(':');
+  lcd.print(now.second(), DEC);
+  lcd.print("          ");
+}
+
+void printTime()
+{
+  if (needToShowTime)
+  { //triggers a function which will print to lcd
+    previousMillis = millis();                       //and wait for said time
+    while ((millis() - previousMillis) <= tDuration) //show for 5 seconds
+    {
+      showTime();
+      Alarm.delay(50); //to slow down arduino
+    }
+    needToShowTime = false; //after we have shown the time for time we can go to normal
+  }
+}
+
+void updateSensor()
+{
+  if (currentMillis - previousMillis1 > 2000)
+  {
+    h = dht.readHumidity();
+    t = dht.readTemperature();
+    if (t > setPointT)
+    {
+      tempHigh = true;
+    }
+    else
+    {
+      tempHigh = false;
+    }
+
+    if (h > setPointH + 5)
+    {
+      humidityHigh = true;
+    } else
+    { humidityHigh = false;
+    }
+    previousMillis1 = currentMillis;
+  }
+}
+
+void Maintain()
+{
+  if (tempHigh)
+  {
+    digitalWrite(relay, LOW);
+  }
+  else
+  {
+    digitalWrite(relay, HIGH);
+  }
+  if (humidityHigh)
+  {
+    digitalWrite(deHumFan, HIGH);
+  }
+  else
+  {
+    digitalWrite(deHumFan, LOW);
+  }
+}
+
+void calcHatchDay()
+{
+  DateTime now = rtc.now();
+  DateTime future (now + TimeSpan(21, 12, 30, 6));
+  hatchYear = future.year();
+  hatchMonth = future.month();
+  hatchDay = future.day();
+  hatchHour = future.hour();
+  EEPROM.put(10, hatchYear);
+  EEPROM.put(14, hatchMonth);
+  EEPROM.put(18, hatchDay);
+}
+
+
+void beepFor(int onTime, int OffTime, int Duration) {   //remember to type previousMillis = millis(); just before calling the function.
+  if (beepActive) {
+    digitalWrite(buzzer, HIGH);
+    Alarm.delay(onTime);
+    digitalWrite(buzzer, LOW);
+    Alarm.delay(offTime);
+    if (currentMillis - previousMillis => Duration) {
+      beepActive = false;
+    }
+  }
+}
+
+
+void hatchDayProcedure() {
+  if(hatchDay == year.now() && hatchMonth == month.now && hatchDay == day.now()){
+    if(showHatchMsg){
+    previousMillis = millis()
+    while(millis - previousMillis <= (10* 1000)){
+    previousMillis1 = millis();
+    beepFor(100, 100, 60 * 1000);
+    //show_hatch_msg();
+    lcd.setCursor(0,0);
+    lcd.print("Chicks are  :)  ")
+    lcd.setCursor(0,1);
+    lcd.print("HATCHING!!!!    ");
+     }
+    }
+  }
+}
+
+
+void calcLockDay() {
+  DateTime now = rtc.now();
+  DateTime future (now + TimeSpan(18, 12, 30, 6));
+  lockYear = future.year();
+  lockMonth = future.month();
+  lockDay = future.day();
+  EEPROM.update(22, hatchYear);
+  EEPROM.update(26, hatchMonth);
+  EEPROM.update(30, hatchDay);
+}

@@ -1,0 +1,85 @@
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <WiFi.h>                  //already included in esp32 package
+#include "DHT.h"
+
+#define DHTPIN 32
+#define oneWireBus  33
+#define DHTTYPE DHT22
+#define moistPin  35
+#define LDRPin  34
+DHT dht(DHTPIN, DHTTYPE);
+OneWire oneWire(oneWireBus);
+DallasTemperature sensors(&oneWire);
+String apiKey = "BE7U15RJYY57AV91";                  //  Enter your Write API key from ThingSpeak
+const char *ssid =  "SSID";                                    // replace with your wifi ssid and wpa2 key
+const char *pass =  "PASSWORD";
+const char* server = "api.thingspeak.com";           //don't change
+float soilTemperature, h, t, lightIntensity, soilMoisture;
+WiFiClient client;
+void setup()
+{
+  Serial.begin(115200);
+  delay(10);
+  Serial.begin(115200);
+  sensors.begin();  //starts ds18b20
+  dht.begin();   //give 2 second delay to all sensors
+  Serial.println("Connecting to ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, pass);
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("WiFi connected");
+
+}
+void loop()
+{
+  if (client.connect(server, 80))                                //   "184.106.153.149" or api.thingspeak.com
+  {
+
+    String postStr = apiKey;                          //keep the apikey variable unchanged just add fields and values
+    postStr += "&field1=";
+    postStr += String(h);
+    postStr += "&field2=";
+    postStr += String(t);
+    postStr += "&field3=";
+    postStr += String(soilTemperature);
+    postStr += "&field4=";
+    postStr += String(lightIntensity);
+    postStr += "&field5=";
+    postStr += String(soilMoisture);
+    postStr += "\r\n\r\n";
+
+    client.print("POST /update HTTP/1.1\n");               //keep this part unchanged
+    client.print("Host: api.thingspeak.com\n");
+    client.print("Connection: close\n");
+    client.print("X-THINGSPEAKAPIKEY: " + apiKey + "\n");
+    client.print("Content-Type: application/x-www-form-urlencoded\n");
+    client.print("Content-Length: ");
+    client.print(postStr.length());
+    client.print("\n\n");
+    client.print(postStr);
+    client.stop();
+    Serial.println("Waiting...");
+    delay(30000);                                      //the website accepts values in 30 seconds so we add a delay of 30 seconds before loop restarts
+    getSensorValues();
+  }
+}
+
+
+  void getSensorValues() {
+    sensors.requestTemperatures();
+    float soilTemp = sensors.getTempCByIndex(0);
+    float h = dht.readHumidity();
+    t = dht.readTemperature();
+    if (isnan(h) || isnan(t)) {
+      Serial.println(F("Failed to read from DHT sensor!")); //print to server
+      return;
+    }
+    lightIntensity = analogRead(LDRPin); // read the value from the LDR
+    soilMoisture = analogRead(moistPin);
+  }

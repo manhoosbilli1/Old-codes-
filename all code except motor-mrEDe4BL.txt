@@ -1,0 +1,159 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <TimeLib.h>
+#include <TimeAlarms.h>
+#include <Bounce2.h>
+#include "DHT.h"
+#define DHTPIN 7    // what pin we're connected to
+#define DHTTYPE DHT22   // DHT 22  (AM2302)
+#define btn_up 11
+#define btn_down  12
+#define btn_select 10
+bool Up;
+bool Down;
+bool Select;
+bool updAlarm;
+float h;
+float t;
+DHT dht(DHTPIN, DHTTYPE);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+AlarmId id;
+Bounce debouncer1 = Bounce();
+Bounce debouncer2 = Bounce();
+Bounce debouncer3 = Bounce();
+
+ 
+void setup() {
+  // put your setup code here, to run once:
+  pinMode(btn_up,INPUT_PULLUP);
+  debouncer1.attach(btn_up);
+  debouncer1.interval(25); // interval in ms
+  pinMode(btn_down,INPUT_PULLUP);
+  debouncer2.attach(btn_down);
+  debouncer2.interval(25);
+  pinMode(btn_select,INPUT_PULLUP);
+  debouncer3.attach(btn_select);
+  debouncer3.interval(25);
+  //add a function that will read sensors after every 2 seconds
+  dht.begin();  
+ 
+  //ask if the user wants to start incubating procedure if 
+  //not already in the process
+  lcd.begin();
+  lcd.backlight();
+  lcd.setCursor(0,0);
+  lcd.print("   Incubator   ");
+  lcd.setCursor(0,1);
+  lcd.print("    Starting   ");
+  Alarm.delay(2000);
+}
+enum pages {
+DEFAULT_SENSOR,
+MANUAL_MTR_TURN, 
+MOTOR_DEMO, 
+TOGGLE_BUZZER, 
+SHOW_TIME, 
+CALCULATE_HATCHDATE   
+};
+int currentPage = DEFAULT_SENSOR;
+void loop() {
+  updateSwitches();
+  Up = debouncer1.read();
+  Down = debouncer2.read();
+  Select = debouncer3.read();
+  menu();
+  
+
+}
+
+
+void updateSwitches(){
+  Up = debouncer1.read();
+  Down = debouncer2.read();
+  Select = debouncer3.read();
+}
+
+
+
+void menu() {
+  switch(currentPage) {
+  case DEFAULT_SENSOR: 
+  updateSwitches();
+  lcd.setCursor(0,0);
+  lcd.print("  T: ");
+  //show temperature from sensor
+  lcd.print("38*C");
+  lcd.setCursor(0,1);
+  lcd.print("  H: ");
+  lcd.print("56%");
+  lcd.print("                ");
+  if(debouncer1.fell()) { //up is pressed
+    currentPage = CALCULATE_HATCHDATE;
+  }
+  if(debouncer2.fell()){
+    currentPage = SHOW_TIME;
+  }
+  //show humidity from sensor
+  break;
+
+  case CALCULATE_HATCHDATE: 
+  updateSwitches();
+  lcd.setCursor(0,0);
+  lcd.print("Press Select To         ");
+  lcd.setCursor(0,1);
+  lcd.print("Find HatchDay         ");
+  if(debouncer1.fell()) { //up is pressed
+    currentPage = MANUAL_MTR_TURN;
+  }
+  if(debouncer2.fell()){
+    currentPage = DEFAULT_SENSOR;
+  }
+  break;
+
+  case MANUAL_MTR_TURN:
+  updateSwitches();
+  lcd.setCursor(0,0);
+  lcd.print("Press Select          ");
+  lcd.setCursor(0,1);
+  lcd.print("To Turn Motor     ");
+  
+  break;
+
+  case MOTOR_DEMO:
+  updateSwitches();
+  lcd.setCursor(0,0);
+  lcd.print("Press Select       ");
+  lcd.setCursor(0,1);
+  lcd.print("To Run Demo               ");
+   
+  break;
+
+  case TOGGLE_BUZZER:
+  updateSwitches();
+  lcd.setCursor(0,0);
+  lcd.print("Press Select          ");
+  lcd.setCursor(0,1);
+  lcd.print("To toggle         ");
+  
+  break;
+
+
+  case SHOW_TIME:
+  updateSwitches();
+  lcd.setCursor(0,0);
+  lcd.print("Press Select         ");
+  lcd.setCursor(0,1);
+  lcd.print("To Show Time         ");
+  
+  break;
+ 
+}
+}
+
+
+
+void updateBuzzer(){
+}
+
+void countDownForHatch(){
+}

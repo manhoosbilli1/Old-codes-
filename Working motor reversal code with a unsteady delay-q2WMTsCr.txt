@@ -1,0 +1,72 @@
+unsigned long currentMillis;
+unsigned long previousMillis;
+unsigned long previous2Millis;
+const long onInterval = 10000; 
+const long offInterval = 20000;
+const byte in1 = 3;
+const byte in2 = 4; 
+const byte sw1 = 6;  //this is left switch
+const byte sw2 = 5;  //this is right switch
+boolean sw1Status;
+boolean sw2Status;
+int stateMachine;
+
+void setup() {
+  // put your setup code here, to run once:
+  pinMode(in1, OUTPUT);
+  pinMode(in2, OUTPUT);
+  pinMode(sw1, INPUT);
+  pinMode(sw2, INPUT);
+  
+
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  currentMillis = millis();
+  sw1Status = digitalRead(sw1);
+  sw2Status = digitalRead(sw2);
+
+ switch (stateMachine) {
+    case 0: //motor stop/ reset
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, LOW);
+    if(sw1Status == HIGH && sw2Status == LOW)  //tray is tilted to the left 
+    {
+      stateMachine = 1; 
+    } else if (sw1Status == LOW && sw2Status == HIGH) {  //try is tilted to the right
+      stateMachine = 2; 
+    }
+    break;  //erase the break see what happens
+
+    case 1:  //go right
+    if(sw2Status == LOW) {   //go right until the right switch is high
+      if(currentMillis - previousMillis >= onInterval) {
+        digitalWrite(in1, HIGH);
+        digitalWrite(in2, LOW);
+        previousMillis = currentMillis;
+      } else if (sw2Status == HIGH ) {
+        stateMachine = 0;   // go to reset
+      }
+    } else if (sw2Status == HIGH) {
+      stateMachine = 0;  // go to reset
+    }
+    break;
+
+    case 2:  //go left
+    if(sw1Status == LOW) { //go left until it touches left switch
+      if(currentMillis - previousMillis >= onInterval) {
+        digitalWrite(in1, LOW);   //go right mechanism
+        digitalWrite(in2, HIGH);
+        previousMillis = currentMillis;
+      } else if (sw1Status == HIGH) {  //if it touches left switch
+        stateMachine = 0;  //go to reset
+      }
+    } else if (sw1Status == HIGH) {
+      stateMachine = 0;
+    }
+    break;
+
+   
+  }
+  }

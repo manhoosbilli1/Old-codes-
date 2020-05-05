@@ -1,0 +1,95 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+#include <Bounce2.h>
+#define btn_up 12
+#define btn_up 11
+#define btn_select 10
+
+void setup() {
+  // put your setup code here, to run once:
+  pinMode(btn_up,INPUT_PULLUP);
+  debouncer1.attach(btn_up);
+  debouncer1.interval(25); // interval in ms
+  pinMode(btn_down,INPUT_PULLUP);
+  debouncer2.attach(btn_down);
+  debouncer2.interval(25);
+  pinMode(btn_select,INPUT_PULLUP);
+  debouncer2.attach(btn_select);
+  debouncer2.interval(25);  
+
+  //ask if the user wants to start incubating procedure if 
+  //not already in the process
+  
+}
+enum pages {
+DEFAULT_SENSOR,MANUAL_MTR_TURN, 
+MOTOR_DEMO, TOGGLE_ALARM, 
+SHOW_TIME, CALCULATE_HATCHDATE   
+};
+ 
+int currentPage = DEFAULT_SENSOR;
+void loop() {
+  debouncer1.update();
+  debouncer2.update();
+  debouncer3.update();
+  Up = debouncer1.read();
+  Down = debouncer2.read();
+  Select = debouncer2.read();
+
+
+}
+
+void updateAlarm(){
+  //update sens value
+}
+
+
+void menu() {
+  case DEFAULT_SENSOR:
+  //updateAlarms();  this will contain all the timers 
+  lcd.setCursor(0,2);
+  lcd.print("T: ");
+  //show temperature from sensor
+  lcd.print("34.6 C*");
+  lcd.setCursor(1,2);
+  lcd.print("H: ");
+  lcd.print("50 %");
+  //show humidity from sensor
+  break;
+
+  case CALCULATE_HATCHDATE: 
+  break;
+
+  case MANUAL_MTR_TURN:
+  //if button pushed
+  //turn on the flag
+  //the function will run it once and then turn off the flag
+  break;
+
+  case MOTOR_DEMO:
+  //motor will go to the other switch stay there for 10 seconds 
+  //and then come back to original position. 
+  break;
+
+  case TOGGLE_BUZZER:
+  //will read from eeprom status of alarm 
+  //if enabled it will disable the alarm 
+  //if disabled it will make the alarm buzz for 2 seconds and 
+  //then turn off giving a message as "succeful"
+  break;
+
+
+  case SHOW_TIME:
+  //will show time for 5 seconds and go back to default page
+  break;
+ 
+}
+
+
+
+void updateBuzzer(){
+}
+
+void countDownForHatch(){
+}

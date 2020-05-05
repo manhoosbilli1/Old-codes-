@@ -1,0 +1,148 @@
+#include <Bounce2.h>
+#include <Wire.h>
+#include "RTClib.h"
+RTC_DS3231 rtc;
+
+const byte motorRightPin = 4;
+const byte motorLeftPin = 3;
+const byte limitSwitchLeftPin = 7;
+const byte limitSwitchRightPin = 8;
+const byte triggerPin = 11;
+const int on_hour = 19; 
+const int on_minute = 35;
+
+bool startMotor = false;
+Bounce limitSwitchLeft = Bounce();
+Bounce limitSwitchRight = Bounce();
+Bounce triggerButton = Bounce();  //trigger for motor
+ 
+void setup() {
+  // put your setup code here, to run once
+ 
+  pinMode(motorRightPin, OUTPUT);
+  pinMode(motorLeftPin, OUTPUT);
+  digitalWrite(motorRightPin, LOW);
+  digitalWrite(motorLeftPin, LOW);
+ 
+  limitSwitchLeft.attach(limitSwitchLeftPin, INPUT_PULLUP);
+  limitSwitchLeft.interval(50);
+ 
+  limitSwitchRight.attach(limitSwitchRightPin, INPUT_PULLUP);
+  limitSwitchRight.interval(50);
+ 
+  triggerButton.attach(triggerPin, INPUT_PULLUP);
+  triggerButton.interval(25);
+ 
+  Serial.begin(9600);
+  //assuming motor is already one one junction
+  Serial.println("Incubator starting. motor is now at rest");
+  if(! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while(1);
+  }
+
+  if(rtc.lostPower()) {
+    Serial.println("RTC lost power");
+    // following line sets the RTC to the date & time this sketch was compiled
+    //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // This line sets the RTC with an explicit date & time, for example to set
+    // January 21, 2014 at 3am you would call:
+    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+  }
+  while(digitalRead(limitSwitchLeftPin) == HIGH && digitalRead(limitSwitchRightPin) == HIGH )
+  {
+    digitalWrite(motorRightPin, LOW);
+    digitalWrite(motorLeftPin, HIGH);
+    //lcd.print("Mtr calibrating");
+  }
+    digitalWrite(motorRightPin, LOW);
+    digitalWrite(motorLeftPin, LOW);
+    //lcd.print("Calibration OK");
+  
+  delay(2000);
+}
+ 
+enum states { STATE_IDLE, STATE_MOVING_RIGHT, STATE_MOVING_LEFT };
+ 
+int currentState = STATE_IDLE;
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  DateTime now = rtc.now();
+  int hour_now = now.hour();
+  int minute_now = now.minute();
+  int seconds_now = now.second();
+
+  limitSwitchLeft.update();
+  limitSwitchRight.update();
+  triggerButton.update();
+ 
+  bool limitSwitchLeftState = limitSwitchLeft.read();   //switch are input pullup. high state is zero
+  bool limitSwitchRightState = limitSwitchRight.read();
+  
+
+  if(on_hour == hour_now && on_minute == minute_now)
+      {
+        startMotor = true;
+      } else 
+      if (on_minute < minute_now) 
+      {
+        startMotor = false;
+        Serial.println("startmotor trigger has been turned off");
+        digitalWrite(motorRightPin, LOW);
+        digitalWrite(motorLeftPin, LOW);
+      }
+
+  if (startMotor == true)
+  {  
+  switch (currentState) {
+    case STATE_IDLE:
+      // motor is off, waiting for trigger button to be pressed
+      
+     
+        Serial.println("button to trigger start motor has been presssed");
+        // figure out which way to move
+        if (limitSwitchLeftState == HIGH && limitSwitchRightState == LOW)
+        {
+          Serial.println("Moving right now");
+          digitalWrite(motorRightPin, HIGH);
+          digitalWrite(motorLeftPin, LOW);
+          currentState = STATE_MOVING_RIGHT;
+        }
+        else if (limitSwitchLeftState == LOW && limitSwitchRightState == HIGH)
+        {
+          Serial.println("Moving left now");
+          digitalWrite(motorRightPin, LOW);
+          digitalWrite(motorLeftPin, HIGH);
+          currentState = STATE_MOVING_LEFT;
+        }
+       
+      break;
+ 
+    case STATE_MOVING_RIGHT:
+      // moving right so only check right limit switch
+      if (limitSwitchRightState == HIGH && limitSwitchLeftState == LOW)   
+      {
+        Serial.println("Motor reached right. motor stopping");
+        digitalWrite(motorRightPin, LOW);
+        digitalWrite(motorLeftPin, LOW);
+        startMotor = false;
+        
+      }
+      break;
+ 
+    case STATE_MOVING_LEFT:
+      // moving left so only check left limit switch
+ 
+      if (limitSwitchLeftState == HIGH && limitSwitchRightState == LOW)
+      {
+        Serial.println("Motor has reached left. Motor stopping");
+        digitalWrite(motorRightPin, LOW);
+        digitalWrite(motorLeftPin, LOW);
+        startMotor = false;
+      
+      }
+      break;
+  }
+ }
+}

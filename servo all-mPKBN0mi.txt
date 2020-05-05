@@ -1,0 +1,86 @@
+#include <Servo.h>
+Servo claw;
+Servo pivot;
+Servo upperPivot;
+Servo clawRotator;
+Servo base; 
+int clawPos;
+
+ 
+bool goingToDefaultFlag;
+bool goingToObjectFlag;
+bool goingToSpecificFlag;
+ 
+const int minimumPivot = 180; 
+const int minimumUpperPivot;
+const int maximumPivot = 120;
+const int maximumUpperPivot;
+const int basedelay;
+const int openClaw = 160;
+const int closeClaw = 103;
+int defaultUpperPivot;
+const int verticalClawRot = 180;
+const int horizontalClawRot =90;
+
+bool trigger;
+void setup() {
+  pivot.attach(3);
+  claw.attach(10);
+  clawRotator.attach(9);
+  upperPivot.attach(5);
+  base.attach(6);
+  
+  
+  
+}
+enum state{Default, pickObject, dropObject};
+int currentState = Default;
+void loop() {
+  pivot.write(180);
+  delay(2000);
+  pivot.write(120);
+  
+}
+
+
+void DefaultFunction() {
+  base.write(90);     //stop base 
+  pivot.write(180);  //extends fully 
+  delay(1000);
+  upperPivot.write(0);  //find out its medium extreme and minimum
+  delay(1000);
+  clawRotator.write(0); //find out its vertical and horizontal
+  delay(1000);
+  claw.write(0);
+   }
+
+void armFunction(){
+  //if trigger true;
+    switch(currentState) {
+      case Default:
+      //arm goes to default.. waits for signal
+      DefaultFunction();
+      //if(trigger == true) {
+      //pickObect
+      
+      break;
+   
+      case pickObject:
+      //signal recieved, goes to pick object
+      base.write(0);   //travel left for until u get to 90*
+      delay(9);
+      base.write(90);  //stop base
+      delay(500);  //this needs to be slow to look pretty
+      pivot.write(minimumPivot);
+      upperPivot.write(defaultUpperPivot);
+      clawRotator.write(0);
+      claw.write(0);
+      break;
+   
+      case dropObject:
+      //object picked..going to drop
+      //goes to default mode();
+      break;
+   
+    }
+   }

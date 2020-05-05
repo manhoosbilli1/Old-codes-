@@ -1,0 +1,34 @@
+Base:
+	going left command  = 0
+	going right command = 180 
+	stop command        = 90
+
+pivot:
+	MAX value = 180      ( travels from right to left making 180 degree)
+	min Value = 10       ( keep this 10 degree to keep this from hitting the plastic
+	picking Value = 
+	default value = 100  (value set when doing the default function) 
+
+
+upperPivot: 
+
+	default value = 40
+	picking up = 140
+	max value = 180    (will rotate completely! advised not to enter this value)
+	minValue  = 0
+
+ClawRotator:
+	
+	bring to horizontal = 90
+	bring to vertical = 180
+
+claw: 
+	Close claw = 30
+	Open  claw = 90 
+
+
+NOTE: You can achieve high speed function by replacing the forloop in "moveTo" functions simply with myservo.write(value)
+
+
+NOTE: ONLY call CALL THE ARMFUNCTION WHEN THE ARDUINO IS NOT DOING ANYTHING ELSE. OTHERWISE IT MIGHT RESULT IN TIMING ISSU
+It is advised to stop the motor before carrying out the arm function

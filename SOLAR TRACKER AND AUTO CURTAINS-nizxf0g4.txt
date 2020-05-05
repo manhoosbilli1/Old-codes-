@@ -1,0 +1,38 @@
+int m1 = 12;
+int m2 = 10;
+int ldr = A1;
+int isDay = false;
+int light;
+void setup()
+{
+  pinMode(m1, OUTPUT);
+  pinMode(m2, OUTPUT);
+  pinMode(ldr, INPUT);
+  Serial.begin(9600);
+}
+void loop()
+{
+  light = analogRead(ldr);
+  Serial.println(light);
+  if ((light >= 900) && (isDay == false)) //light value more than 800
+  {
+    Serial.println("its day ");
+    digitalWrite(m1, HIGH);
+    digitalWrite(m2, LOW);
+    delay(12000);
+    digitalWrite(m1, LOW);
+    digitalWrite(m2, LOW);
+    isDay = true;
+  }
+
+  if ((light < 300) && ( isDay == true)) //light value less than 200
+  {
+    digitalWrite(m1, LOW);
+    digitalWrite(m2, HIGH);
+    delay(12000);
+    digitalWrite(m1, LOW);
+    digitalWrite(m2, LOW);
+    isDay = false;
+    Serial.println("its night");
+  }
+}

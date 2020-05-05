@@ -1,0 +1,41 @@
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include "DHT.h"
+#define DHTPIN 32
+#define oneWireBus = 33;
+#define DHTTYPE DHT22
+#define moistPin = 35;
+#define ldrPin = 34;
+int LDRValue = 0;
+DHT dht(DHTPIN, DHTTYPE);
+OneWire oneWire(oneWireBus);
+DallasTemperature sensors(&oneWire);
+
+void setup() {
+  // Start the Serial Monitor
+  Serial.begin(115200);
+  sensors.begin();  //starts ds18b20
+  dht.begin();   //give 2 second delay to all sensors
+  pinMode(lDRpin, INPUT);
+  pinMode(moistPin, INPUT);
+}
+
+
+void loop() {
+  //get values and send to website only once and then go deep sleep
+}
+
+void getSensorValues() {
+  sensors.requestTemperatures();
+  float soilTemp = sensors.getTempCByIndex(0);
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+  if (isnan(h) || isnan(t) || isnan(f)) {
+    Serial.println(F("Failed to read from DHT sensor!")); //print to server
+    return;
+  }
+  LDRValue = analogRead(LDRpin); // read the value from the LDR
+  light = map(ldrValue, 0,1023,0,100);   //map light value as percentage
+  moistVal = analogRead(moistPin);
+  moisture = map(moistVal, 0,1023,0,100);
+}

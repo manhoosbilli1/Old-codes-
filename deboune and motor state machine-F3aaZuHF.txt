@@ -1,0 +1,304 @@
+
+// Include the Bounce2 library found here :
+// https://github.com/thomasfredericks/Bounce2
+#include <Bounce2.h>
+
+
+//left switch
+#define BUTTON_PIN_1 6
+
+//Right switch
+#define BUTTON_PIN_2 5
+
+
+#define LED_GREEN 12
+
+
+#define LED_PIN 13
+
+//Time variables
+const int blinkDelay = 500;
+unsigned long  previousBlink = 0;
+unsigned long currentMillis = 0;
+
+//motor time variables
+unsigned long lastReverse =0;
+const int turnInterval = 10000;
+
+unsigned long lastMotorDelay = 0;
+const int motorDelay = 20000;
+
+//this is the delay that the motor will be stop for. 
+
+//Setting up motor pins
+const byte in1 = 4;
+const byte in2 = 3;
+int in1State =0;
+int in2State =0;
+
+int value1 =0;
+int value2 =0;
+
+//
+int state =0;
+
+// Instantiate a Bounce object 
+Bounce debouncer1 = Bounce();     
+
+// Instantiate another Bounce object
+Bounce debouncer2 = Bounce(); 
+
+void setup() {
+
+  // Setup the the left switch :
+  pinMode(BUTTON_PIN_1,INPUT);
+
+  //Motor variables
+  pinMode(in1, OUTPUT);
+  pinMode(in2, OUTPUT);
+  
+  // After setting up the button, setup the Bounce instance :
+  debouncer1.attach(BUTTON_PIN_1);
+  debouncer1.interval(5); // interval in ms
+  
+  // Setup the right switch :
+  pinMode(BUTTON_PIN_2,INPUT);
+  
+  // After setting up the button, setup the Bounce instance :
+  debouncer2.attach(BUTTON_PIN_2);
+  debouncer2.interval(5); // interval in ms
+
+
+  //Setup the LED :
+  pinMode(LED_PIN,OUTPUT);
+  pinMode(LED_GREEN, OUTPUT);
+
+  // Update switch 
+  debouncer1.update();
+  debouncer2.update();
+  //Calibrate the motors at the start.
+  initialCalibration(); 
+  delay(5000);//add a delay here so that when it calibrates it stops for one hour and then move to loop 
+                
+}
+
+void loop() {
+  // Update the Bounce instances :
+  // i need to initialize all the timers here 
+  lastMotorDelay = 0;
+  lastReverse = 0;
+  currentMillis = millis();
+  debouncer1.update();
+  debouncer2.update();
+  int value1 = debouncer1.read();
+  int value2 = debouncer2.read();
+  switch(state) {
+
+    case 0:  //Motor Stop 
+    updateValue();
+    if(value1 == HIGH && value2 == LOW) {   //value 1 is left so we have to go right
+    //making sure motor is stopped
+    updateValue();
+    stopMotor();
+    state = 1;   //jump to delay process
+    }
+    updateValue();
+    if(value1 == LOW && value2 == HIGH) {     //means the tray is to the left. 
+    updateValue();
+    stopMotor();
+    state = 1;   //jump to delay process
+    }
+      
+     
+    break;
+
+    case 1:  
+    //This should wait 1 hour before starting motors. so that there is equal interval
+    //creating a branch which leads to different reverse processes
+    //intended to create a delay of 1 hour before it tilts the tray again.
+   
+     
+     //as soon as the delay finishes it calculates the state to throw them in to 
+     updateValue();
+     if(value1 == HIGH && value2 == LOW) {
+     updateValue();
+     //tray is tilted towards left and has to right
+     state = 2;  
+     //go to the going right process   
+     }
+     updateValue();
+     //tray is tilted towards right and has to go left
+     if(value1 == LOW && value2 == HIGH) { 
+     updateValue();
+     state = 3;  // go to the going left process 
+     }
+   }
+    break;
+
+    //Reverse process  towards right
+    case 2:  
+    //this simply turns the motors on 
+    // i believe it stops the motor but at a very fast rate and moves on to the next process
+    //i think i need to introduce another delay before it reverses the motor which whould be equal to lastReverse
+   
+    stopMotor(); 
+    goRight();   
+    //Read the buttons again. 
+    updateValue();   
+    //will detect if it touches the right side
+    if(value1 == LOW && value2 == HIGH)    
+    { state = 0; }
+    //this creates a loop
+    break;
+
+    // going to the left process
+    case 3:
+
+    //when this while condition becomes true i.e 10 seconds have passed since the motor is stopped then it will on to next statement
+   
+    // i want to introduce another delay of one hour here
+    //basically whenever it towards either switches, it should stop and delay it. 
+    stopMotor(); 
+    goLeft();
+    updateValue();
+    //IF IT TOUCHES RIGHT
+    if(value1 == HIGH && value2 == LOW) {
+    state = 0; }
+    break;
+}
+  
+
+  // Get the updated value :
+  
+
+}
+//Function to calibrate the tray as in (till it enough so that it touches one of the switche) 
+//basically a function to tackle load-shedding. if electricity cuts in between the tilt motion. it should return to initial position
+
+void initialCalibration () {
+
+  int value1 = debouncer1.read();
+  int value2 = debouncer2.read();
+  
+  if(value1 == LOW && value2 == LOW) {
+    digitalWrite(in1, HIGH);
+    digitalWrite(in2, LOW);
+  } else {
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, LOW);
+  }
+//for now it goes through these commands very fast and does not stop. 
+//i wish to introduce a delay whenever it touches the switch and the switch is high 
+//as i have stated many times, the purpose of the machine and detailed functions are going to be explained in the email 
+  
+}
+
+
+/*  void mSt () {													//THIS FUNCTION IS REPEATED IN LOOP. 
+//State machine for buttons and reverse calculation 
+  
+  switch(state) {
+
+  case 0:  //Motor Stop 
+  updateValue();
+  if(value1 == HIGH && value2 == LOW) {   //value 1 is left so we have to go right
+  //making sure motor is stopped
+   updateValue(); // i don't know if refreshing the button state is necessary 
+   stopMotor();  
+   state = 1;   //jump to delay process
+   }
+   updateValue();
+   if(value1 == LOW && value2 == HIGH) {     //means the tray is to the left. 
+   updateValue();
+   stopMotor();
+   state = 1;   //jump to delay process
+   }
+      
+     
+    break;
+
+    case 1:  
+    //creating a branch which leads to different reverse processes.
+    //Delay here aswell.  
+     
+    //as soon as the delay finishes it calculates the state to throw them in to 
+    updateValue();
+    if(value1 == HIGH && value2 == LOW) {
+    updateValue();
+    //tray is tilted towards left and has to right
+    state = 2;  
+    //go to the going right process   
+    }
+    updateValue();
+    //tray is tilted towards right and has to go left
+    if(value1 == LOW && value2 == HIGH) { 
+    updateValue();
+    
+    state = 3;  // go to the going left process 
+
+    stopMotor(); //Make sure motors are stopped
+    // a delay here of 1 hour
+    goRight();   
+    updateValue();   
+    //will detect if it touches the right side
+    if(value1 == LOW && value2 == HIGH)    
+    { state = 0; } //resets
+     
+    break;
+
+    //Reverse process  towards right
+    case 2:  
+    //this simply turns the motors on 
+    stopMotor();
+    while (currentMillis - lastMotorDelay <= motorDelay) {
+      break;
+    }
+    //introduce delay here.
+    goRight();   
+    //this should be there before the value is judged
+    updateValue();   
+    //will detect if it touches the right side
+    if(value1 == LOW && value2 == HIGH)    
+    { state = 0; }
+    break;																					
+
+    // going to the left process
+    case 3:  
+    goLeft();
+    updateValue();
+    //IF TOUCHES RIGHT
+    if(value1 == HIGH && value2 == LOW) {
+    state = 0; }
+    break;
+}
+} 
+*/
+
+void goLeft() {  //figure out clockwise and anti clockwise rotation first and plug in the values
+  digitalWrite(in1, HIGH);
+  digitalWrite(in2, LOW); 
+  updateValue();
+    
+}
+
+void goRight() {   //tentative values. kindly check clw and aclw
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, HIGH);
+  updateValue();
+
+}
+
+void stopMotor() {
+ // if (currentMillis - lastDelayed <= lastMotorDelay) {   // this will keep it stopped for the delay period. and move on. 
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, LOW);
+  updateValue();
+  }
+ // updateValue();
+
+
+
+void updateValue() {
+  int value1 = debouncer1.read();
+  int value2 = debouncer2.read();
+}

@@ -1,0 +1,159 @@
+//Pins
+
+#define sw1 5
+#define sw2 7
+#define led1 13
+#define m1 10
+#define m2 11
+
+//states
+
+boolean sw1Status;
+boolean sw2Status;
+boolean prevState1;
+boolean prevState2;
+
+//Flags
+
+boolean blinkFlag = 1;
+bool sw1Flag;
+bool sw2Flag;
+bool m1Flag;
+bool m2Flag;
+bool motorStopFlag;
+int state;
+
+
+//Timing
+
+unsigned long currentMillis;
+unsigned long previousMillis;
+
+
+void setup()
+{
+  // put your setup code here, to run once:
+
+  pinMode(sw1, INPUT_PULLUP);
+  pinMode(sw2, INPUT_PULLUP);
+  pinMode(m1, OUTPUT);
+  pinMode(m2, OUTPUT);
+  pinMode(13, OUTPUT);
+  Serial.begin(9600);
+
+}
+
+void loop()
+{
+  int sw1Status = digitalRead(sw1);
+  int sw2Status = digitalRead(sw2);
+  if (sw1Status != sw2Status) {
+    state = 0;
+  }
+  currentMillis = millis();
+  motorLogic();
+}
+
+
+
+void motorLogic()
+{
+  switch (state)
+  {
+    case 0:
+      //set flags and stop motor
+      //logic is inverted
+      if (sw1Status == LOW & sw2Status == HIGH)
+      {
+        sw1Flag = 1;
+        sw2Flag = 0;
+        m1Flag = 1;
+        m2Flag = 0;    // meaning it is currently pushing down on sw1 so m1 is high.
+        motorStopFlag = 1;
+
+
+      }
+
+      if (sw1Status == HIGH & sw2Status == LOW)
+      {
+        sw2Flag = 1;
+        sw1Flag = 0;
+        m2Flag = 1;
+        m1Flag = 0;
+        motorStopFlag = 1;
+
+      }
+      state = 1;
+      break;
+
+    case 1:
+      if ((sw1Flag == 1) & (motorStopFlag == 1) || (sw2Flag == 1) & (motorStopFlag == 1))
+      {
+        motorStop();
+        Serial.println("In case 1 motor stopped");
+        delay(5000);
+        Serial.println("Just finished delay");
+
+
+        if (sw1Status == LOW & sw2Status == HIGH)
+        {
+          Serial.println("Chose state 2 from case 1 menu");
+          state = 2;                 //if the left is switch is high then state = 2 to rotate it in the opposite direction
+
+        } else if (sw1Status == HIGH & sw2Status == LOW)
+        {
+          state = 3;
+          Serial.println("Chose state 3 from case 1 menu");
+          motorStopFlag = 0;
+        }
+
+
+
+
+      }
+      break;
+
+    case 2:
+
+      //reverse and go to the opposite one.
+      motorStopFlag = 0;
+      Serial.println("Reversing direction in case 2");
+      reverseDirection();            // it will keep going in the opposite direction
+      if (sw2Status == LOW)       //until the opposite switch is high
+      {
+        motorStop();
+        Serial.print("Reached sw2 from sw1 in case 2 ");
+        state = 0;                 //as it touches that. the state is transfered to 0
+      }
+      break;
+
+    case 3:
+
+      motorStopFlag = 0;
+      Serial.println("in case 3 reversing direction ");
+      reverseDirection();         // it will keep going in the opposite direction
+      if (sw1Status == LOW)      //until the opposite switch is high
+      {
+        motorStop();
+        Serial.println("Just reached sw1 from sw2 in case 3");
+        state = 0;                //as it touches that. the state is transfered to 0
+      }
+      break;
+  }
+}
+
+
+void reverseDirection()
+{
+  digitalWrite(m1, !m1Flag);
+  digitalWrite(m2, !m2Flag);
+  Serial.print("Reversing direction");
+
+}
+
+void motorStop()
+{
+  digitalWrite(m1, HIGH);
+  digitalWrite(m2, HIGH);
+  Serial.print("Motor stopped");
+}
